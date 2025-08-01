@@ -20,6 +20,7 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
   });
   const [activeMeeting, setActiveMeeting] = useState(null);
   const [showCaptions, setShowCaptions] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // ALL useEffect hooks MUST come before any early returns
   useEffect(() => {
@@ -559,6 +560,128 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Meeting Modal - New Design */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-white/20 w-full max-w-md mx-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6 rounded-t-3xl">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-white">Schedule New Meeting</h3>
+                <button
+                  onClick={() => setShowScheduleModal(false)}
+                  className="text-white hover:text-gray-200 p-2 hover:bg-white/10 rounded-xl transition-all duration-200"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-8">
+              <form onSubmit={createMeeting} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Meeting Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newMeeting.title}
+                    onChange={(e) => setNewMeeting({...newMeeting, title: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    placeholder="Enter meeting title"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Description
+                  </label>
+                  <textarea
+                    value={newMeeting.description}
+                    onChange={(e) => setNewMeeting({...newMeeting, description: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
+                    rows="3"
+                    placeholder="Optional description"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Scheduled Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={newMeeting.scheduledTime}
+                    onChange={(e) => setNewMeeting({...newMeeting, scheduledTime: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Duration (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={newMeeting.duration}
+                    onChange={(e) => setNewMeeting({...newMeeting, duration: parseInt(e.target.value)})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                    min="15"
+                    max="480"
+                    placeholder="60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Attendees (emails, comma-separated)
+                  </label>
+                  <textarea
+                    value={newMeeting.attendees}
+                    onChange={(e) => setNewMeeting({...newMeeting, attendees: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
+                    rows="2"
+                    placeholder="email1@example.com, email2@example.com"
+                  />
+                </div>
+
+                <div className="flex space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleModal(false)}
+                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createLoading}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    {createLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        <span>Scheduling...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>Schedule Meeting</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
