@@ -210,7 +210,7 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
 
             {/* GitHub Integration Tab */}
             {activeTab === 'github' && (
-              <GitHubIntegration workspaceId={workspaceId} />
+              <GitHubIntegration workspaceId={workspaceId} workspace={workspace} />
             )}
 
             {/* Pending Invites Tab */}

@@ -32,7 +32,24 @@ const workspaceSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
-  }]
+  }],
+  githubRepository: {
+    owner: {
+      type: String,
+      trim: true
+    },
+    repo: {
+      type: String,
+      trim: true
+    },
+    connectedAt: {
+      type: Date
+    },
+    connectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }
 }, {
   timestamps: true
 });
