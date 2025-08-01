@@ -7,6 +7,7 @@ import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import WorkspaceDetail from './components/WorkspaceDetail';
 import ProtectedRoute from './components/ProtectedRoute';
+import AuthRoute from './components/AuthRoute';
 import './App.css';
 
 const AuthApp = () => {
@@ -39,9 +40,23 @@ function App() {
         <Router>
           <div className="App">
             <Routes>
-              {/* Public routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Signup />} />
+              {/* Public routes - redirect to dashboard if already authenticated */}
+              <Route 
+                path="/login" 
+                element={
+                  <AuthRoute>
+                    <Login />
+                  </AuthRoute>
+                } 
+              />
+              <Route 
+                path="/register" 
+                element={
+                  <AuthRoute>
+                    <Signup />
+                  </AuthRoute>
+                } 
+              />
               
               {/* Protected routes */}
               <Route 

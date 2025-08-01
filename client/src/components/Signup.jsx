@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
 
-const Signup = ({ onToggle }) => {
+const Signup = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -115,13 +116,12 @@ const Signup = ({ onToggle }) => {
           <div className="text-center">
             <span className="text-sm text-gray-600">
               Already have an account?{' '}
-              <button
-                type="button"
-                onClick={onToggle}
+              <Link
+                to="/login"
                 className="font-medium text-blue-600 hover:text-blue-500"
               >
                 Sign in
-              </button>
+              </Link>
             </span>
           </div>
         </form>

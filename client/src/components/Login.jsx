@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Link, useNavigate } from 'react-router-dom';
 
-const Login = ({ onToggle }) => {
+const Login = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -19,8 +21,14 @@ const Login = ({ onToggle }) => {
     e.preventDefault();
     setError('');
 
+    console.log('Attempting login...');
     const result = await login(email, password);
-    if (!result.success) {
+
+    if (result.success) {
+      console.log('Login successful, navigating to dashboard...');
+      navigate('/dashboard');
+    } else {
+      console.log('Login failed:', result.message);
       setError(result.message);
     }
   };
@@ -79,13 +87,12 @@ const Login = ({ onToggle }) => {
           <div className="text-center">
             <span className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <button
-                type="button"
-                onClick={onToggle}
+              <Link
+                to="/register"
                 className="font-medium text-blue-600 hover:text-blue-500"
               >
                 Sign up
-              </button>
+              </Link>
             </span>
           </div>
         </form>

@@ -3,41 +3,48 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
+// Helper function to set auth token
+const setAuthToken = (token) => {
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    localStorage.setItem('token', token);
+  } else {
+    delete axios.defaults.headers.common['Authorization'];
+    localStorage.removeItem('token');
+  }
+};
+
 const authReducer = (state, action) => {
   switch (action.type) {
-    case 'LOGIN_SUCCESS':
-    case 'SIGNUP_SUCCESS':
-      localStorage.setItem('token', action.payload.token);
-      return {
-        ...state,
-        token: action.payload.token,
-        user: action.payload.user,
-        isAuthenticated: true,
-        loading: false,
-      };
+    case 'SET_LOADING':
+      return { ...state, loading: true };
     case 'USER_LOADED':
       return {
         ...state,
-        user: action.payload.user,
         isAuthenticated: true,
         loading: false,
+        user: action.payload,
       };
-    case 'AUTH_ERROR':
+    case 'LOGIN_SUCCESS':
+    case 'SIGNUP_SUCCESS':
+      return {
+        ...state,
+        isAuthenticated: true,
+        loading: false,
+        user: action.payload.user,
+        token: action.payload.token,
+      };
     case 'LOGIN_FAIL':
-    case 'SIGNUP_FAIL':
     case 'LOGOUT':
+    case 'AUTH_ERROR':
       localStorage.removeItem('token');
+      setAuthToken(null);
       return {
         ...state,
         token: null,
-        user: null,
         isAuthenticated: false,
         loading: false,
-      };
-    case 'SET_LOADING':
-      return {
-        ...state,
-        loading: true,
+        user: null,
       };
     default:
       return state;
@@ -45,43 +52,32 @@ const authReducer = (state, action) => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const initialState = {
+  const [state, dispatch] = useReducer(authReducer, {
     token: localStorage.getItem('token'),
-    user: null,
     isAuthenticated: false,
     loading: true,
-  };
+    user: null,
+  });
 
-  const [state, dispatch] = useReducer(authReducer, initialState);
-
-  // Set auth token in axios headers
-  const setAuthToken = (token) => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  };
-
-  // Load user - FIXED VERSION
+  // Load user from token on app start
   const loadUser = async () => {
     const token = localStorage.getItem('token');
     
-    if (!token) {
-      dispatch({ type: 'AUTH_ERROR' });
-      return;
-    }
-
-    setAuthToken(token);
-
-    try {
-      const res = await axios.get('http://localhost:5000/api/auth/me');
-      dispatch({
-        type: 'USER_LOADED',
-        payload: res.data,
-      });
-    } catch (err) {
-      console.error('Error loading user:', err);
+    if (token) {
+      setAuthToken(token);
+      
+      try {
+        const res = await axios.get('http://localhost:5000/api/auth/me');
+        
+        dispatch({
+          type: 'USER_LOADED',
+          payload: res.data.user,
+        });
+      } catch (err) {
+        console.error('Load user error:', err);
+        dispatch({ type: 'AUTH_ERROR' });
+      }
+    } else {
       dispatch({ type: 'AUTH_ERROR' });
     }
   };
@@ -96,18 +92,26 @@ export const AuthProvider = ({ children }) => {
         password,
       });
 
-      dispatch({
-        type: 'LOGIN_SUCCESS',
-        payload: res.data,
-      });
+      if (res.data.success) {
+        dispatch({
+          type: 'LOGIN_SUCCESS',
+          payload: res.data,
+        });
 
-      setAuthToken(res.data.token);
-      return { success: true };
+        setAuthToken(res.data.token);
+        
+        return { success: true };
+      } else {
+        throw new Error('Login failed');
+      }
     } catch (err) {
+      console.error('Login error:', err);
+      
       dispatch({ type: 'LOGIN_FAIL' });
+      
       return { 
         success: false, 
-        message: err.response?.data?.message || 'Login failed' 
+        message: err.response?.data?.message || 'Login failed. Please check your credentials.' 
       };
     }
   };
@@ -129,9 +133,10 @@ export const AuthProvider = ({ children }) => {
       });
 
       setAuthToken(res.data.token);
+      
       return { success: true };
     } catch (err) {
-      dispatch({ type: 'SIGNUP_FAIL' });
+      dispatch({ type: 'LOGIN_FAIL' });
       return { 
         success: false, 
         message: err.response?.data?.message || 'Signup failed' 
@@ -142,7 +147,6 @@ export const AuthProvider = ({ children }) => {
   // Logout
   const logout = () => {
     dispatch({ type: 'LOGOUT' });
-    setAuthToken(null);
   };
 
   useEffect(() => {
@@ -152,7 +156,10 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider
       value={{
-        ...state,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+        loading: state.loading,
+        user: state.user,
         login,
         signup,
         logout,
