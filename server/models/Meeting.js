@@ -90,7 +90,33 @@ const meetingSchema = new mongoose.Schema({
   transcript: {
     type: String,
     trim: true
-  }
+  },
+  // Add these new fields for automatic notes
+  automaticNotes: {
+    type: String,
+    trim: true
+  },
+  notesGenerated: {
+    type: Boolean,
+    default: false
+  },
+  notesGeneratedAt: {
+    type: Date
+  },
+  missedByMembers: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    notified: {
+      type: Boolean,
+      default: false
+    },
+    viewedNotes: {
+      type: Boolean,
+      default: false
+    }
+  }]
 }, {
   timestamps: true
 });

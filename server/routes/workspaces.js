@@ -5,6 +5,7 @@ const Invite = require('../models/Invite');
 const User = require('../models/User');
 const { normalizeArtifacts } = require('../utils/normalizeArtifacts');
 const router = express.Router();
+const mongoose = require('mongoose');
 
 // Helper function to fetch GitHub PRs for workspace
 const fetchGitHubPRs = async (workspaceId) => {
@@ -253,6 +254,14 @@ router.get('/', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validate ID format
+    if (!id || id === 'undefined' || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        message: 'Invalid workspace ID format',
+        receivedId: id 
+      });
+    }
 
     // Find the workspace
     const workspace = await Workspace.findById(id)

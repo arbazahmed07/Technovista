@@ -8,6 +8,7 @@ import Timeline from './Timeline';
 import Chat from './Chat';
 import GoogleMeetIntegration from './GoogleMeetIntegration';
 import SmartOnboarding from './SmartOnboarding';
+import MeetingNotes from './MeetingNotes';
 
 const WorkspaceDetail = ({ workspaceId, onBack }) => {
   const { user } = useAuth();
@@ -37,7 +38,14 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
   });
 
   useEffect(() => {
-    fetchWorkspaceDetails();
+    if (workspaceId && workspaceId !== 'undefined') {
+      console.log('Fetching workspace details for ID:', workspaceId);
+      fetchWorkspaceDetails();
+    } else {
+      console.error('Invalid workspaceId in WorkspaceDetail:', workspaceId);
+      setError('Invalid workspace ID');
+      setLoading(false);
+    }
   }, [workspaceId]);
 
   // Add useEffect to fetch GitHub data when workspace is loaded
@@ -48,12 +56,20 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
   }, [workspace]);
 
   const fetchWorkspaceDetails = async () => {
+    if (!workspaceId || workspaceId === 'undefined') {
+      setError('Invalid workspace ID');
+      setLoading(false);
+      return;
+    }
+
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get(`http://localhost:5000/api/workspaces/${workspaceId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setWorkspace(response.data.workspace);
+      setError('');
     } catch (error) {
       console.error('Error fetching workspace details:', error);
       setError(error.response?.data?.message || 'Failed to load workspace');
@@ -62,30 +78,28 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
     }
   };
 
-  // Add GitHub data fetching function
   const fetchGitHubData = async () => {
-    setGithubData(prev => ({
-      ...prev,
-      loading: { ...prev.loading, repo: true }
-    }));
+    if (!workspaceId || workspaceId === 'undefined') {
+      return;
+    }
 
     try {
       const token = localStorage.getItem('token');
       
-      // First, check if repository is connected
-      const repoResponse = await axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/repository`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Check if GitHub is connected
+      const repoResponse = await axios.get(
+        `http://localhost:5000/api/github/workspace/${workspaceId}/repository`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      if (repoResponse.data.connected) {
+      if (repoResponse.data.repository) {
         setGithubData(prev => ({
           ...prev,
           isConnected: true,
-          repoInfo: repoResponse.data.repository,
-          loading: { ...prev.loading, repo: false }
+          repoInfo: repoResponse.data.repository
         }));
 
-        // Fetch all GitHub data in parallel
+        // Fetch GitHub data
         const dataPromises = [
           axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/issues`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -120,7 +134,7 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
             ...prev,
             data: {
               issues: issuesRes.status === 'fulfilled' ? (issuesRes.value.data.issues || []) : [],
-              pullRequests: issuesRes.status === 'fulfilled' ? (pullRequestsRes.value.data.pullRequests || []) : [],
+              pullRequests: pullRequestsRes.status === 'fulfilled' ? (pullRequestsRes.value.data.pullRequests || []) : [],
               commits: commitsRes.status === 'fulfilled' ? (commitsRes.value.data.commits || []) : [],
               releases: releasesRes.status === 'fulfilled' ? (releasesRes.value.data.releases || []) : []
             },
@@ -170,6 +184,24 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
   const handleGitHubDataChange = () => {
     fetchGitHubData();
   };
+
+  // Early validation
+  if (!workspaceId || workspaceId === 'undefined') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Error</h2>
+          <p className="text-gray-600 mb-4">Invalid workspace ID</p>
+          <button
+            onClick={onBack}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const canManageMembers = workspace?.userRole === 'Creator' || workspace?.userRole === 'Admin';
   const isCreator = workspace?.userRole === 'Creator';
@@ -245,7 +277,7 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
         </div>
       </nav>
 
-      {/* Navigation Tabs */}
+      {/* Tab Navigation */}
       <nav className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex space-x-8">
@@ -267,7 +299,6 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
       </nav>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Tab Content */}
         {/* Smart Onboarding Tab */}
         {activeTab === 'onboarding' && (
           <div className="p-6">
@@ -477,9 +508,10 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
         )}
 
         {/* Google Meet Tab */}
-        {activeTab === 'meet' && (
+        {activeTab === 'meet' && workspaceId && workspaceId !== 'undefined' && (
           <div className="p-6">
             <GoogleMeetIntegration workspaceId={workspaceId} />
+            <MeetingNotes workspaceId={workspaceId} />
           </div>
         )}
       </main>

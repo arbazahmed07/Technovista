@@ -1,5 +1,6 @@
 const express = require('express');
 const { google } = require('googleapis');
+const mongoose = require('mongoose'); // Add this import
 const auth = require('../middleware/auth');
 const Meeting = require('../models/Meeting');
 const Workspace = require('../models/Workspace');
@@ -328,6 +329,14 @@ router.get('/workspace/:workspaceId/meetings', auth, async (req, res) => {
     const { workspaceId } = req.params;
     const { status, upcoming } = req.query;
 
+    // Validate workspaceId format
+    if (!workspaceId || workspaceId === 'undefined' || !mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ 
+        message: 'Invalid workspace ID format',
+        workspaceId: workspaceId 
+      });
+    }
+
     // Validate workspace access
     const workspace = await Workspace.findById(workspaceId);
     console.log('Fetching meetings for workspace:', workspaceId, 'User:', req.user.id);
@@ -358,14 +367,20 @@ router.get('/workspace/:workspaceId/meetings', auth, async (req, res) => {
       .populate('attendees.user', 'name email')
       .sort({ scheduledTime: 1 });
 
+    console.log(`Found ${meetings.length} meetings for workspace ${workspaceId}`);
+
     res.json({
       success: true,
-      meetings
+      meetings,
+      count: meetings.length
     });
 
   } catch (error) {
     console.error('Error fetching meetings:', error);
-    res.status(500).json({ message: 'Failed to fetch meetings' });
+    res.status(500).json({ 
+      message: 'Failed to fetch meetings',
+      error: error.message 
+    });
   }
 });
 
@@ -568,4 +583,579 @@ function generateMeetingNotesFromCaptions(captions, meeting) {
   return notes;
 }
 
+// @route   GET /api/meet/workspace/:workspaceId/notes
+// @desc    Get meetings with notes for workspace
+// @access  Private
+router.get('/workspace/:workspaceId/notes', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { filter } = req.query;
+
+    // Validate workspaceId format
+    if (!workspaceId || workspaceId === 'undefined' || !mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ 
+        message: 'Invalid workspace ID format',
+        workspaceId: workspaceId 
+      });
+    }
+
+    // Validate workspace access
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Access denied to this workspace' });
+    }
+
+    let query = { 
+      workspace: workspaceId,
+      scheduledTime: { $lt: new Date() } // Only past meetings
+    };
+    
+    if (filter === 'missed') {
+      query['missedByMembers.user'] = req.user.id;
+    } else if (filter === 'completed') {
+      query.status = 'completed';
+      query.notesGenerated = true;
+    }
+
+    const meetings = await Meeting.find(query)
+      .populate('organizer', 'name email')
+      .populate('missedByMembers.user', 'name email')
+      .sort({ scheduledTime: -1 });
+
+    // Add information about whether current user missed the meeting and viewed notes
+    const meetingsWithUserInfo = meetings.map(meeting => {
+      const missedByUser = meeting.missedByMembers.find(
+        missed => missed.user._id.toString() === req.user.id
+      );
+      
+      return {
+        ...meeting.toObject(),
+        missedByCurrentUser: !!missedByUser,
+        currentUserViewedNotes: missedByUser ? missedByUser.viewedNotes : false
+      };
+    });
+
+    res.json({
+      success: true,
+      meetings: meetingsWithUserInfo
+    });
+
+  } catch (error) {
+    console.error('Error fetching meetings with notes:', error);
+    res.status(500).json({ message: 'Failed to fetch meetings with notes' });
+  }
+});
+
+// @route   POST /api/meet/:meetingId/generate-automatic-notes
+// @desc    Generate automatic meeting notes from captions
+// @access  Private
+router.post('/:meetingId/generate-automatic-notes', auth, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const { captions } = req.body;
+
+    const meeting = await Meeting.findById(meetingId)
+      .populate('organizer', 'name email')
+      .populate('workspace');
+    
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting not found' });
+    }
+
+    // Get all captions if not provided
+    let meetingCaptions = captions;
+    if (!meetingCaptions) {
+      const captionsFromDB = await MeetingCaption.find({ meeting: meetingId })
+        .populate('userId', 'name')
+        .sort({ timestamp: 1 });
+      meetingCaptions = captionsFromDB;
+    }
+
+    // Generate comprehensive meeting notes
+    const automaticNotes = generateComprehensiveMeetingNotes(meetingCaptions, meeting);
+    
+    // Find workspace members who weren't in the meeting
+    const workspace = meeting.workspace;
+    const meetingAttendeeIds = [
+      meeting.organizer._id.toString(),
+      ...meeting.attendees.map(a => a.user?.toString()).filter(Boolean)
+    ];
+    
+    const missedByMembers = workspace.members
+      .filter(member => !meetingAttendeeIds.includes(member.user.toString()))
+      .map(member => ({
+        user: member.user,
+        notified: false,
+        viewedNotes: false
+      }));
+
+    // Update meeting with generated notes
+    meeting.automaticNotes = automaticNotes;
+    meeting.notesGenerated = true;
+    meeting.notesGeneratedAt = new Date();
+    meeting.status = 'completed';
+    meeting.missedByMembers = missedByMembers;
+    
+    await meeting.save();
+
+    // TODO: Send notifications to users who missed the meeting
+    // await sendMissedMeetingNotifications(meeting, missedByMembers);
+
+    res.json({
+      success: true,
+      notes: automaticNotes,
+      missedByCount: missedByMembers.length,
+      message: 'Automatic meeting notes generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error generating automatic meeting notes:', error);
+    res.status(500).json({ message: 'Failed to generate automatic meeting notes' });
+  }
+});
+
+// @route   POST /api/meet/:meetingId/mark-notes-viewed
+// @desc    Mark meeting notes as viewed by user
+// @access  Private
+router.post('/:meetingId/mark-notes-viewed', auth, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting not found' });
+    }
+
+    // Find and update the missed member record
+    const missedMemberIndex = meeting.missedByMembers.findIndex(
+      missed => missed.user.toString() === req.user.id
+    );
+
+    if (missedMemberIndex !== -1) {
+      meeting.missedByMembers[missedMemberIndex].viewedNotes = true;
+      await meeting.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Notes marked as viewed'
+    });
+
+  } catch (error) {
+    console.error('Error marking notes as viewed:', error);
+    res.status(500).json({ message: 'Failed to mark notes as viewed' });
+  }
+});
+
+function generateComprehensiveMeetingNotes(captions, meeting) {
+  const sortedCaptions = captions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  
+  let notes = `# Meeting Notes: ${meeting.title}\n\n`;
+  notes += `**Date:** ${new Date(meeting.scheduledTime).toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  })}\n`;
+  notes += `**Time:** ${new Date(meeting.scheduledTime).toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })}\n`;
+  notes += `**Duration:** ${meeting.duration} minutes\n`;
+  notes += `**Organizer:** ${meeting.organizer?.name || 'Unknown'}\n`;
+  
+  if (meeting.attendees && meeting.attendees.length > 0) {
+    notes += `**Attendees:** ${meeting.attendees.map(a => a.email).join(', ')}\n`;
+  }
+  
+  notes += `**Meeting ID:** ${meeting.meetingId}\n\n`;
+
+  if (meeting.description) {
+    notes += `## Meeting Description\n${meeting.description}\n\n`;
+  }
+
+  notes += `## Executive Summary\n\n`;
+  notes += `This meeting took place on ${new Date(meeting.scheduledTime).toLocaleDateString()} and lasted ${meeting.duration} minutes. `;
+  
+  // Count unique speakers
+  const speakers = [...new Set(sortedCaptions.map(c => c.speaker))];
+  notes += `The discussion involved ${speakers.length} participant${speakers.length > 1 ? 's' : ''}: ${speakers.join(', ')}.\n\n`;
+
+  notes += `## Discussion Timeline\n\n`;
+  
+  // Group captions by time segments (every 5 minutes)
+  const timeSegments = {};
+  sortedCaptions.forEach(caption => {
+    const time = new Date(caption.timestamp);
+    const segmentKey = Math.floor(time.getMinutes() / 5) * 5;
+    const segmentLabel = `${String(time.getHours()).padStart(2, '0')}:${String(segmentKey).padStart(2, '0')}`;
+    
+    if (!timeSegments[segmentLabel]) {
+      timeSegments[segmentLabel] = [];
+    }
+    timeSegments[segmentLabel].push(caption);
+  });
+
+  Object.entries(timeSegments).forEach(([timeLabel, segmentCaptions]) => {
+    notes += `### ${timeLabel}\n\n`;
+    segmentCaptions.forEach(caption => {
+      const time = new Date(caption.timestamp).toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      notes += `**[${time}] ${caption.speaker}:** ${caption.text}\n\n`;
+    });
+  });
+
+  notes += `## Key Discussion Points\n\n`;
+  
+  // Extract potential key points (longer messages, questions, etc.)
+  const keyPoints = sortedCaptions.filter(caption => 
+    caption.text.length > 50 || 
+    caption.text.includes('?') || 
+    caption.text.toLowerCase().includes('important') ||
+    caption.text.toLowerCase().includes('decision') ||
+    caption.text.toLowerCase().includes('action')
+  );
+
+  if (keyPoints.length > 0) {
+    keyPoints.slice(0, 10).forEach((point, index) => {
+      notes += `${index + 1}. **${point.speaker}:** ${point.text}\n\n`;
+    });
+  } else {
+    notes += `- Review the discussion timeline above for detailed conversation\n`;
+    notes += `- Key decisions and action items may be found in the conversation\n`;
+    notes += `- Consider reviewing the full transcript for important details\n\n`;
+  }
+
+  notes += `## Action Items & Next Steps\n\n`;
+  
+  // Look for action-related keywords
+  const actionCaptions = sortedCaptions.filter(caption => 
+    caption.text.toLowerCase().includes('action') ||
+    caption.text.toLowerCase().includes('todo') ||
+    caption.text.toLowerCase().includes('next step') ||
+    caption.text.toLowerCase().includes('follow up') ||
+    caption.text.toLowerCase().includes('will do') ||
+    caption.text.toLowerCase().includes('need to')
+  );
+
+  if (actionCaptions.length > 0) {
+    actionCaptions.forEach(action => {
+      notes += `- [ ] **${action.speaker}:** ${action.text}\n`;
+    });
+  } else {
+    notes += `- [ ] Review meeting discussion for any commitments made\n`;
+    notes += `- [ ] Follow up on topics that require further discussion\n`;
+    notes += `- [ ] Schedule next meeting if needed\n`;
+  }
+
+  notes += `\n## Meeting Statistics\n\n`;
+  notes += `- **Total Speaking Time Captured:** ~${sortedCaptions.length} speech segments\n`;
+  notes += `- **Participants:** ${speakers.length}\n`;
+  notes += `- **Meeting Duration:** ${meeting.duration} minutes\n`;
+  notes += `- **Notes Generated:** ${new Date().toLocaleString()}\n\n`;
+
+  notes += `---\n\n`;
+  notes += `*These notes were automatically generated from meeting captions. For complete accuracy, please review the original meeting recording if available.*\n`;
+
+  return notes;
+}
+
+// @route   GET /api/meet/workspace/:workspaceId/notes
+// @desc    Get meetings with notes for workspace
+// @access  Private
+router.get('/workspace/:workspaceId/notes', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { filter } = req.query;
+
+    // Validate workspaceId format
+    if (!workspaceId || workspaceId === 'undefined' || !mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({ 
+        message: 'Invalid workspace ID format',
+        workspaceId: workspaceId 
+      });
+    }
+
+    // Validate workspace access
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Access denied to this workspace' });
+    }
+
+    let query = { 
+      workspace: workspaceId,
+      scheduledTime: { $lt: new Date() } // Only past meetings
+    };
+    
+    if (filter === 'missed') {
+      query['missedByMembers.user'] = req.user.id;
+    } else if (filter === 'completed') {
+      query.status = 'completed';
+      query.notesGenerated = true;
+    }
+
+    const meetings = await Meeting.find(query)
+      .populate('organizer', 'name email')
+      .populate('missedByMembers.user', 'name email')
+      .sort({ scheduledTime: -1 });
+
+    // Add information about whether current user missed the meeting and viewed notes
+    const meetingsWithUserInfo = meetings.map(meeting => {
+      const missedByUser = meeting.missedByMembers.find(
+        missed => missed.user._id.toString() === req.user.id
+      );
+      
+      return {
+        ...meeting.toObject(),
+        missedByCurrentUser: !!missedByUser,
+        currentUserViewedNotes: missedByUser ? missedByUser.viewedNotes : false
+      };
+    });
+
+    res.json({
+      success: true,
+      meetings: meetingsWithUserInfo
+    });
+
+  } catch (error) {
+    console.error('Error fetching meetings with notes:', error);
+    res.status(500).json({ message: 'Failed to fetch meetings with notes' });
+  }
+});
+
+// @route   POST /api/meet/:meetingId/generate-automatic-notes
+// @desc    Generate automatic meeting notes from captions
+// @access  Private
+router.post('/:meetingId/generate-automatic-notes', auth, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const { captions } = req.body;
+
+    const meeting = await Meeting.findById(meetingId)
+      .populate('organizer', 'name email')
+      .populate('workspace');
+    
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting not found' });
+    }
+
+    // Get all captions if not provided
+    let meetingCaptions = captions;
+    if (!meetingCaptions) {
+      const captionsFromDB = await MeetingCaption.find({ meeting: meetingId })
+        .populate('userId', 'name')
+        .sort({ timestamp: 1 });
+      meetingCaptions = captionsFromDB;
+    }
+
+    // Generate comprehensive meeting notes
+    const automaticNotes = generateComprehensiveMeetingNotes(meetingCaptions, meeting);
+    
+    // Find workspace members who weren't in the meeting
+    const workspace = meeting.workspace;
+    const meetingAttendeeIds = [
+      meeting.organizer._id.toString(),
+      ...meeting.attendees.map(a => a.user?.toString()).filter(Boolean)
+    ];
+    
+    const missedByMembers = workspace.members
+      .filter(member => !meetingAttendeeIds.includes(member.user.toString()))
+      .map(member => ({
+        user: member.user,
+        notified: false,
+        viewedNotes: false
+      }));
+
+    // Update meeting with generated notes
+    meeting.automaticNotes = automaticNotes;
+    meeting.notesGenerated = true;
+    meeting.notesGeneratedAt = new Date();
+    meeting.status = 'completed';
+    meeting.missedByMembers = missedByMembers;
+    
+    await meeting.save();
+
+    // TODO: Send notifications to users who missed the meeting
+    // await sendMissedMeetingNotifications(meeting, missedByMembers);
+
+    res.json({
+      success: true,
+      notes: automaticNotes,
+      missedByCount: missedByMembers.length,
+      message: 'Automatic meeting notes generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error generating automatic meeting notes:', error);
+    res.status(500).json({ message: 'Failed to generate automatic meeting notes' });
+  }
+});
+
+// @route   POST /api/meet/:meetingId/mark-notes-viewed
+// @desc    Mark meeting notes as viewed by user
+// @access  Private
+router.post('/:meetingId/mark-notes-viewed', auth, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting not found' });
+    }
+
+    // Find and update the missed member record
+    const missedMemberIndex = meeting.missedByMembers.findIndex(
+      missed => missed.user.toString() === req.user.id
+    );
+
+    if (missedMemberIndex !== -1) {
+      meeting.missedByMembers[missedMemberIndex].viewedNotes = true;
+      await meeting.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Notes marked as viewed'
+    });
+
+  } catch (error) {
+    console.error('Error marking notes as viewed:', error);
+    res.status(500).json({ message: 'Failed to mark notes as viewed' });
+  }
+});
+
+function generateComprehensiveMeetingNotes(captions, meeting) {
+  const sortedCaptions = captions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  
+  let notes = `# Meeting Notes: ${meeting.title}\n\n`;
+  notes += `**Date:** ${new Date(meeting.scheduledTime).toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  })}\n`;
+  notes += `**Time:** ${new Date(meeting.scheduledTime).toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })}\n`;
+  notes += `**Duration:** ${meeting.duration} minutes\n`;
+  notes += `**Organizer:** ${meeting.organizer?.name || 'Unknown'}\n`;
+  
+  if (meeting.attendees && meeting.attendees.length > 0) {
+    notes += `**Attendees:** ${meeting.attendees.map(a => a.email).join(', ')}\n`;
+  }
+  
+  notes += `**Meeting ID:** ${meeting.meetingId}\n\n`;
+
+  if (meeting.description) {
+    notes += `## Meeting Description\n${meeting.description}\n\n`;
+  }
+
+  notes += `## Executive Summary\n\n`;
+  notes += `This meeting took place on ${new Date(meeting.scheduledTime).toLocaleDateString()} and lasted ${meeting.duration} minutes. `;
+  
+  // Count unique speakers
+  const speakers = [...new Set(sortedCaptions.map(c => c.speaker))];
+  notes += `The discussion involved ${speakers.length} participant${speakers.length > 1 ? 's' : ''}: ${speakers.join(', ')}.\n\n`;
+
+  notes += `## Discussion Timeline\n\n`;
+  
+  // Group captions by time segments (every 5 minutes)
+  const timeSegments = {};
+  sortedCaptions.forEach(caption => {
+    const time = new Date(caption.timestamp);
+    const segmentKey = Math.floor(time.getMinutes() / 5) * 5;
+    const segmentLabel = `${String(time.getHours()).padStart(2, '0')}:${String(segmentKey).padStart(2, '0')}`;
+    
+    if (!timeSegments[segmentLabel]) {
+      timeSegments[segmentLabel] = [];
+    }
+    timeSegments[segmentLabel].push(caption);
+  });
+
+  Object.entries(timeSegments).forEach(([timeLabel, segmentCaptions]) => {
+    notes += `### ${timeLabel}\n\n`;
+    segmentCaptions.forEach(caption => {
+      const time = new Date(caption.timestamp).toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      notes += `**[${time}] ${caption.speaker}:** ${caption.text}\n\n`;
+    });
+  });
+
+  notes += `## Key Discussion Points\n\n`;
+  
+  // Extract potential key points (longer messages, questions, etc.)
+  const keyPoints = sortedCaptions.filter(caption => 
+    caption.text.length > 50 || 
+    caption.text.includes('?') || 
+    caption.text.toLowerCase().includes('important') ||
+    caption.text.toLowerCase().includes('decision') ||
+    caption.text.toLowerCase().includes('action')
+  );
+
+  if (keyPoints.length > 0) {
+    keyPoints.slice(0, 10).forEach((point, index) => {
+      notes += `${index + 1}. **${point.speaker}:** ${point.text}\n\n`;
+    });
+  } else {
+    notes += `- Review the discussion timeline above for detailed conversation\n`;
+    notes += `- Key decisions and action items may be found in the conversation\n`;
+    notes += `- Consider reviewing the full transcript for important details\n\n`;
+  }
+
+  notes += `## Action Items & Next Steps\n\n`;
+  
+  // Look for action-related keywords
+  const actionCaptions = sortedCaptions.filter(caption => 
+    caption.text.toLowerCase().includes('action') ||
+    caption.text.toLowerCase().includes('todo') ||
+    caption.text.toLowerCase().includes('next step') ||
+    caption.text.toLowerCase().includes('follow up') ||
+    caption.text.toLowerCase().includes('will do') ||
+    caption.text.toLowerCase().includes('need to')
+  );
+
+  if (actionCaptions.length > 0) {
+    actionCaptions.forEach(action => {
+      notes += `- [ ] **${action.speaker}:** ${action.text}\n`;
+    });
+  } else {
+    notes += `- [ ] Review meeting discussion for any commitments made\n`;
+    notes += `- [ ] Follow up on topics that require further discussion\n`;
+    notes += `- [ ] Schedule next meeting if needed\n`;
+  }
+
+  notes += `\n## Meeting Statistics\n\n`;
+  notes += `- **Total Speaking Time Captured:** ~${sortedCaptions.length} speech segments\n`;
+  notes += `- **Participants:** ${speakers.length}\n`;
+  notes += `- **Meeting Duration:** ${meeting.duration} minutes\n`;
+  notes += `- **Notes Generated:** ${new Date().toLocaleString()}\n\n`;
+
+  notes += `---\n\n`;
+  notes += `*These notes were automatically generated from meeting captions. For complete accuracy, please review the original meeting recording if available.*\n`;
+
+  return notes;
+}
+
+// Make sure this line exists at the end of the file
 module.exports = router;

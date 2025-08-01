@@ -39,73 +39,80 @@ const Dashboard = () => {
       });
       setPendingInvites(response.data.invites || []);
     } catch (error) {
-      console.error('Error fetching invites:', error);
+      console.error('Error fetching pending invites:', error);
     } finally {
       setLoading(prev => ({ ...prev, invites: false }));
     }
   };
 
-  const handleInviteAction = async (inviteId, action) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post(
-        `http://localhost:5000/api/invites/${inviteId}/${action}`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      // Remove the invite from the list
-      setPendingInvites(prev => prev.filter(invite => invite.id !== inviteId));
-      
-      // Refresh workspaces if accepted
-      if (action === 'accept') {
-        fetchWorkspaces();
-      }
-    } catch (error) {
-      console.error(`Error ${action}ing invite:`, error);
+  const openWorkspace = (workspaceId) => {
+    console.log('Opening workspace with ID:', workspaceId);
+    if (workspaceId && workspaceId !== 'undefined') {
+      setSelectedWorkspaceId(workspaceId);
+    } else {
+      console.error('Invalid workspace ID:', workspaceId);
     }
   };
 
-  const handleLogout = () => {
-    logout();
-  };
-
-  const openWorkspace = (workspaceId) => {
-    setSelectedWorkspaceId(workspaceId);
-  };
-
-  const handleBackToDashboard = () => {
+  const closeWorkspace = () => {
     setSelectedWorkspaceId(null);
   };
 
   const handleWorkspaceCreated = (newWorkspace) => {
-    // Add the new workspace to the list
-    setWorkspaces(prev => [newWorkspace, ...prev]);
+    setWorkspaces(prev => [...prev, newWorkspace]);
+    setShowCreateModal(false);
   };
 
-  // If a workspace is selected, show the workspace detail view
+  const acceptInvite = async (inviteId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`http://localhost:5000/api/invites/${inviteId}/accept`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      await fetchWorkspaces();
+      await fetchPendingInvites();
+    } catch (error) {
+      console.error('Error accepting invite:', error);
+      alert('Failed to accept invitation');
+    }
+  };
+
+  const declineInvite = async (inviteId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`http://localhost:5000/api/invites/${inviteId}/decline`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      await fetchPendingInvites();
+    } catch (error) {
+      console.error('Error declining invite:', error);
+      alert('Failed to decline invitation');
+    }
+  };
+
+  // If a workspace is selected, show the workspace detail
   if (selectedWorkspaceId) {
     return (
       <WorkspaceDetail 
-        workspaceId={selectedWorkspaceId} 
-        onBack={handleBackToDashboard}
+        workspaceId={selectedWorkspaceId}
+        onBack={closeWorkspace}
       />
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation Bar */}
-      <nav className="bg-white shadow-sm border-b">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">EchoHub</h1>
-            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">Welcome, {user?.name}</span>
               <button
-                onClick={handleLogout}
+                onClick={logout}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Logout
@@ -113,34 +120,63 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-      </nav>
+      </header>
 
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* Top Bar */}
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {/* Pending Invitations */}
+        {pendingInvites.length > 0 && (
+          <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-blue-900 mb-4">Pending Invitations</h2>
+            <div className="space-y-3">
+              {pendingInvites.map((invite) => (
+                <div key={invite.id} className="flex items-center justify-between bg-white p-4 rounded-lg border border-blue-200">
+                  <div>
+                    <h4 className="font-medium text-gray-900">{invite.workspace.name}</h4>
+                    <p className="text-sm text-gray-600">
+                      Invited by {invite.invitedBy.name} • {new Date(invite.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => acceptInvite(invite.id)}
+                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => declineInvite(invite.id)}
+                      className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Workspaces Section */}
         <div className="mb-8">
-          <div className="flex justify-between items-center">
-            <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Your Workspaces</h2>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               <span>Create Workspace</span>
             </button>
           </div>
-        </div>
 
-        {/* My Workspaces Section */}
-        <section className="mb-12">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-6">My Workspaces</h3>
           {loading.workspaces ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="text-gray-500">Loading workspaces...</div>
             </div>
           ) : workspaces.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <div className="text-center py-8">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
@@ -166,112 +202,23 @@ const Dashboard = () => {
                     onClick={() => openWorkspace(workspace.id)}
                     className="w-full bg-gray-900 hover:bg-gray-800 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
                   >
-                    Open
+                    Open Workspace
                   </button>
                 </div>
               ))}
             </div>
           )}
-        </section>
-
-        {/* Pending Invitations Section */}
-        <section className="mb-12">
-          <h3 className="text-2xl font-semibold text-gray-900 mb-6">Pending Invitations</h3>
-          {loading.invites ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          ) : pendingInvites.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <p className="text-gray-500 text-center">No pending invitations</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {pendingInvites.map((invite) => (
-                <div key={invite.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h4 className="text-lg font-medium text-gray-900">{invite.workspaceName}</h4>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Invited by <span className="font-medium">{invite.invitedBy}</span>
-                      </p>
-                    </div>
-                    <div className="flex space-x-3 ml-6">
-                      <button
-                        onClick={() => handleInviteAction(invite.id, 'decline')}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                      >
-                        Decline
-                      </button>
-                      <button
-                        onClick={() => handleInviteAction(invite.id, 'accept')}
-                        className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 transition-colors"
-                      >
-                        Accept
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Integrations Section */}
-        <section>
-          <h3 className="text-2xl font-semibold text-gray-900 mb-6">Integrations</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <button className="bg-white border border-gray-300 rounded-lg p-6 hover:shadow-md transition-shadow group">
-              <div className="flex items-center justify-center w-12 h-12 bg-gray-900 rounded-lg mx-auto mb-4 group-hover:bg-gray-800 transition-colors">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                </svg>
-              </div>
-              <h4 className="text-sm font-medium text-gray-900">Connect GitHub</h4>
-              <p className="text-xs text-gray-500 mt-1">Sync repositories</p>
-            </button>
-
-            <button className="bg-white border border-gray-300 rounded-lg p-6 hover:shadow-md transition-shadow group">
-              <div className="flex items-center justify-center w-12 h-12 bg-purple-600 rounded-lg mx-auto mb-4 group-hover:bg-purple-700 transition-colors">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M5.042 15.165a2.528 2.528 0 0 0-2.52 2.523A2.528 2.528 0 0 0 5.042 20.21a2.528 2.528 0 0 0 2.52-2.522 2.528 2.528 0 0 0-2.52-2.523z"/>
-                  <path d="M24 0L0 5.604V24l24-5.604V0z"/>
-                </svg>
-              </div>
-              <h4 className="text-sm font-medium text-gray-900">Connect Slack</h4>
-              <p className="text-xs text-gray-500 mt-1">Team communication</p>
-            </button>
-
-            <button className="bg-white border border-gray-300 rounded-lg p-6 hover:shadow-md transition-shadow group">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-lg mx-auto mb-4 group-hover:bg-blue-700 transition-colors">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M14.727 6.727h5.818V1.636c0-.9-.736-1.636-1.636-1.636H14.727v6.727zM14.727 8.364V24h5.182c.9 0 1.636-.736 1.636-1.636V8.364h-6.818z"/>
-                  <path d="M1.636 0C.736 0 0 .736 0 1.636v20.728C0 23.264.736 24 1.636 24h11.455V0H1.636z"/>
-                </svg>
-              </div>
-              <h4 className="text-sm font-medium text-gray-900">Connect Google Docs</h4>
-              <p className="text-xs text-gray-500 mt-1">Document collaboration</p>
-            </button>
-
-            <button className="bg-white border border-gray-300 rounded-lg p-6 hover:shadow-md transition-shadow group">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-500 rounded-lg mx-auto mb-4 group-hover:bg-blue-600 transition-colors">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M1.5 2C.7 2 0 2.7 0 3.5v17c0 .8.7 1.5 1.5 1.5h21c.8 0 1.5-.7 1.5-1.5v-17c0-.8-.7-1.5-1.5-1.5h-21zM12 6.5c1.9 0 3.5 1.6 3.5 3.5s-1.6 3.5-3.5 3.5-3.5-1.6-3.5-3.5 1.6-3.5 3.5-3.5zm-6 11h12v-1.5c0-2-4-3.1-6-3.1s-6 1.1-6 3.1V17.5z"/>
-                </svg>
-              </div>
-              <h4 className="text-sm font-medium text-gray-900">Connect Zoom</h4>
-              <p className="text-xs text-gray-500 mt-1">Video meetings</p>
-            </button>
-          </div>
-        </section>
+        </div>
       </main>
 
-      {/* Create Workspace Modal (Placeholder) */}
-      <CreateWorkspaceModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onWorkspaceCreated={handleWorkspaceCreated}
-      />
+      {/* Create Workspace Modal */}
+      {showCreateModal && (
+        <CreateWorkspaceModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onWorkspaceCreated={handleWorkspaceCreated}
+        />
+      )}
     </div>
   );
 };

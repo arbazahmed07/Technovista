@@ -123,7 +123,7 @@ const MeetingCaptions = ({ meetingId, isActive, onCaptionsUpdate }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:5000/api/meet/${meetingId}/generate-notes`,
+        `http://localhost:5000/api/meet/${meetingId}/generate-automatic-notes`,
         { captions: captionsRef.current },
         { headers: { Authorization: `Bearer ${token}` } }
       );
