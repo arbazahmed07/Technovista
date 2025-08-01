@@ -106,6 +106,86 @@ const MeetingNotes = ({ workspaceId }) => {
     });
   };
 
+  const formatNotesForDisplay = (notes) => {
+    if (!notes) return <p>No notes available for this meeting.</p>;
+
+    // Split notes into lines and process each line
+    const lines = notes.split('\n');
+    const formattedContent = [];
+
+    lines.forEach((line, index) => {
+      // Handle headers
+      if (line.startsWith('# ')) {
+        formattedContent.push(
+          <h1 key={index} className="text-2xl font-bold text-gray-900 mb-4 mt-6">
+            {line.substring(2)}
+          </h1>
+        );
+      } else if (line.startsWith('## ')) {
+        formattedContent.push(
+          <h2 key={index} className="text-xl font-semibold text-gray-800 mb-3 mt-5">
+            {line.substring(3)}
+          </h2>
+        );
+      } else if (line.startsWith('### ')) {
+        formattedContent.push(
+          <h3 key={index} className="text-lg font-medium text-gray-700 mb-2 mt-4">
+            {line.substring(4)}
+          </h3>
+        );
+      }
+      // Handle bold text
+      else if (line.includes('**')) {
+        const formattedLine = line.split('**').map((part, i) => 
+          i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+        );
+        formattedContent.push(
+          <p key={index} className="mb-2">
+            {formattedLine}
+          </p>
+        );
+      }
+      // Handle bullet points
+      else if (line.startsWith('- ')) {
+        formattedContent.push(
+          <div key={index} className="flex items-start mb-1">
+            <span className="mr-2">•</span>
+            <span>{line.substring(2)}</span>
+          </div>
+        );
+      }
+      // Handle checkboxes
+      else if (line.includes('- [ ]')) {
+        formattedContent.push(
+          <div key={index} className="flex items-start mb-2">
+            <input type="checkbox" className="mr-2 mt-1" disabled />
+            <span>{line.replace('- [ ]', '').trim()}</span>
+          </div>
+        );
+      }
+      // Handle horizontal rules
+      else if (line.trim() === '---') {
+        formattedContent.push(
+          <hr key={index} className="my-4 border-gray-300" />
+        );
+      }
+      // Handle regular paragraphs
+      else if (line.trim()) {
+        formattedContent.push(
+          <p key={index} className="mb-2">
+            {line}
+          </p>
+        );
+      }
+      // Handle empty lines
+      else {
+        formattedContent.push(<br key={index} />);
+      }
+    });
+
+    return <div>{formattedContent}</div>;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -235,8 +315,8 @@ const MeetingNotes = ({ workspaceId }) => {
             
             <div className="p-6 overflow-y-auto max-h-[70vh]">
               <div className="prose max-w-none">
-                <div className="whitespace-pre-wrap text-gray-800">
-                  {selectedMeeting.automaticNotes || 'No notes available for this meeting.'}
+                <div className="formatted-notes text-gray-800">
+                  {formatNotesForDisplay(selectedMeeting.automaticNotes || 'No notes available for this meeting.')}
                 </div>
               </div>
             </div>
