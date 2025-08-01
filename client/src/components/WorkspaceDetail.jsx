@@ -4,6 +4,7 @@ import axios from 'axios';
 import AddMembersModal from './AddMembersModal';
 import GitHubIntegration from './GitHubIntegration';
 import NotionIntegration from './NotionIntegration';
+import Timeline from './Timeline';
 
 const WorkspaceDetail = ({ workspaceId, onBack }) => {
   const { user } = useAuth();
@@ -323,6 +324,17 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
                 <span>🔗</span>
                 <span>GitHub Integration</span>
               </button>
+              <button
+                onClick={() => setActiveTab('timeline')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'timeline'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <span>📅</span>
+                <span>Project Timeline</span>
+              </button>
             </nav>
           </div>
 
@@ -511,6 +523,13 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
                   githubData={githubData}
                   onDataChange={handleGitHubDataChange}
                 />
+              </div>
+            )}
+
+            {/* Timeline Tab */}
+            {activeTab === 'timeline' && (
+              <div className="p-6">
+                <Timeline workspaceId={workspaceId} />
               </div>
             )}
           </div>

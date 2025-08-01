@@ -22,7 +22,7 @@ app.use('/api/workspaces', require('./routes/workspaces'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/github', require('./routes/github'));
 app.use('/api/notion', require('./routes/notion'));
-
+app.use('/api/timeline', require('./routes/timeline')); // Add this line
 // Test route
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });
