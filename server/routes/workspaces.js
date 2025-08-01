@@ -3,7 +3,165 @@ const auth = require('../middleware/auth');
 const Workspace = require('../models/Workspace');
 const Invite = require('../models/Invite');
 const User = require('../models/User');
+const { normalizeArtifacts } = require('../utils/normalizeArtifacts');
 const router = express.Router();
+
+// Helper function to fetch GitHub PRs for workspace
+const fetchGitHubPRs = async (workspaceId) => {
+  try {
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace?.githubRepository?.owner || !workspace?.githubRepository?.repo) {
+      return [];
+    }
+
+    const { owner, repo } = workspace.githubRepository;
+    const axios = require('axios');
+    
+    const githubAPI = axios.create({
+      baseURL: 'https://api.github.com',
+      headers: {
+        'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'EchoHub-App'
+      }
+    });
+
+    const response = await githubAPI.get(`/repos/${owner}/${repo}/pulls`, {
+      params: {
+        state: 'all',
+        per_page: 50,
+        sort: 'created',
+        direction: 'desc'
+      }
+    });
+
+    return response.data.map(pr => ({
+      id: pr.id,
+      number: pr.number,
+      title: pr.title,
+      body: pr.body,
+      state: pr.state,
+      merged: pr.merged_at !== null,
+      draft: pr.draft,
+      author: {
+        login: pr.user.login,
+        avatar: pr.user.avatar_url,
+        url: pr.user.html_url
+      },
+      createdAt: pr.created_at,
+      updatedAt: pr.updated_at,
+      mergedAt: pr.merged_at,
+      url: pr.html_url,
+      head: {
+        ref: pr.head.ref,
+        sha: pr.head.sha
+      },
+      base: {
+        ref: pr.base.ref,
+        sha: pr.base.sha
+      },
+      labels: pr.labels.map(label => ({
+        name: label.name,
+        color: label.color
+      })),
+      assignees: pr.assignees.map(assignee => ({
+        login: assignee.login,
+        avatar: assignee.avatar_url
+      })),
+      reviewers: pr.requested_reviewers.map(reviewer => ({
+        login: reviewer.login,
+        avatar: reviewer.avatar_url
+      }))
+    }));
+  } catch (error) {
+    console.error('Error fetching GitHub PRs:', error.message);
+    return [];
+  }
+};
+
+// Helper function to fetch Notion docs for workspace
+const fetchNotionDocs = async (workspaceId) => {
+  try {
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return [];
+    }
+
+    const databaseId = process.env.NOTION_DATABASE_ID;
+    if (!databaseId) {
+      return [];
+    }
+
+    const axios = require('axios');
+    const notionAPI = axios.create({
+      baseURL: 'https://api.notion.com/v1',
+      headers: {
+        'Authorization': `Bearer ${process.env.NOTION_TOKEN}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    // Get database properties first
+    const dbResponse = await notionAPI.get(`/databases/${databaseId}`);
+    const availableProperties = dbResponse.data.properties;
+
+    // Build query payload
+    let queryPayload = {
+      page_size: 50
+    };
+
+    // Add sorting
+    if (availableProperties.Created) {
+      queryPayload.sorts = [
+        {
+          property: 'Created',
+          direction: 'descending'
+        }
+      ];
+    } else {
+      queryPayload.sorts = [
+        {
+          timestamp: 'created_time',
+          direction: 'descending'
+        }
+      ];
+    }
+
+    // Add workspace filter if available
+    if (availableProperties.Workspace) {
+      queryPayload.filter = {
+        property: 'Workspace',
+        select: {
+          equals: workspace.name
+        }
+      };
+    }
+
+    const response = await notionAPI.post(`/databases/${databaseId}/query`, queryPayload);
+
+    const pages = response.data.results.map(page => ({
+      id: page.id,
+      title: page.properties.Title?.title?.[0]?.plain_text || 'Untitled',
+      type: page.properties.Type?.select?.name || 'Note',
+      status: page.properties.Status?.select?.name || 'Draft',
+      createdTime: page.created_time,
+      lastEditedTime: page.last_edited_time,
+      url: page.url,
+      workspace: page.properties.Workspace?.select?.name || 'No workspace'
+    }));
+
+    // Filter by workspace in code if no filter was applied
+    const filteredPages = availableProperties.Workspace 
+      ? pages 
+      : pages.filter(page => page.workspace === workspace.name || page.workspace === 'No workspace');
+
+    return filteredPages;
+  } catch (error) {
+    console.error('Error fetching Notion docs:', error.message);
+    return [];
+  }
+};
 
 // @route   POST /api/workspaces
 // @desc    Create a new workspace
@@ -90,7 +248,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // @route   GET /api/workspaces/:id
-// @desc    Get workspace details with members and invites
+// @desc    Get workspace details with members, invites, and normalized artifacts
 // @access  Private
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -122,6 +280,22 @@ router.get('/:id', auth, async (req, res) => {
         .sort({ createdAt: -1 });
     }
 
+    // Fetch GitHub PRs and Notion docs in parallel
+    const [githubPRs, notionDocs] = await Promise.all([
+      fetchGitHubPRs(id),
+      fetchNotionDocs(id)
+    ]);
+
+    // Normalize artifacts
+    const artifacts = normalizeArtifacts(githubPRs, notionDocs, id);
+
+    // Log for verification
+    console.log(`Normalized ${artifacts.length} artifacts for workspace ${id}:`, {
+      githubPRs: githubPRs.length,
+      notionDocs: notionDocs.length,
+      totalArtifacts: artifacts.length
+    });
+
     // Format the response
     const workspaceData = {
       id: workspace._id,
@@ -152,7 +326,11 @@ router.get('/:id', auth, async (req, res) => {
 
     res.json({
       success: true,
-      workspace: workspaceData
+      workspace: workspaceData,
+      workspaceId: id,
+      githubPRs,
+      notionDocs,
+      artifacts
     });
   } catch (error) {
     console.error('Error fetching workspace details:', error);
