@@ -132,17 +132,20 @@ io.on('connection', (socket) => {
   });
 });
 
+// Import the search routes
+// const searchRoutes = require('./routes/search');
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/workspaces', require('./routes/workspaces'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/github', require('./routes/github'));
 app.use('/api/notion', require('./routes/notion'));
+app.use('/api/search', require('./routes/search')); // Add this line
 app.use('/api/timeline', require('./routes/timeline'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/meet', require('./routes/meet'));
 app.use('/api/onboarding', require('./routes/onboarding'));
-
 // Test route
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });

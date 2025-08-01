@@ -9,6 +9,7 @@ import Timeline from './Timeline';
 import Chat from './Chat';
 import GoogleMeetIntegration from './GoogleMeetIntegration';
 import MeetingNotes from './MeetingNotes';
+import SemanticSearch from './SemanticSearch';
 
 const WorkspaceDetail = () => {
   const { workspaceId } = useParams();
@@ -274,6 +275,7 @@ const WorkspaceDetail = () => {
   }
 
   const tabs = [
+    { id: 'search', name: 'Semantic Search', icon: '🔍', color: 'from-emerald-500 to-teal-600' },
     { id: 'onboarding', name: 'Smart Onboarding', icon: '🚀', color: 'from-purple-500 to-indigo-600' },
     { id: 'timeline', name: 'Timeline', icon: '📊', color: 'from-blue-500 to-cyan-600' },
     { id: 'chat', name: 'Team Chat', icon: '💬', color: 'from-green-500 to-emerald-600' },
@@ -363,6 +365,13 @@ const WorkspaceDetail = () => {
 
       {/* Tab Content with Enhanced Styling */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Semantic Search Tab */}
+        {activeTab === 'search' && (
+          <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-white/20">
+            <SemanticSearch workspaceId={workspaceId} />
+          </div>
+        )}
+
         {/* Smart Onboarding Tab */}
         {activeTab === 'onboarding' && (
           <div className="bg-white/60 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-white/20">

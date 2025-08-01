@@ -42,3 +42,30 @@
   font-weight: bold;
   fill: #374151;
 }
+
+/* Search highlight styles */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+mark {
+  background-color: #fef08a;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-weight: 600;
+}
+
+/* Search result animations */
+.search-result-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.search-result-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
