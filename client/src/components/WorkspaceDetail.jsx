@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import AddMembersModal from './AddMembersModal';
 import GitHubIntegration from './GitHubIntegration';
+import NotionIntegration from './NotionIntegration';
 
 const WorkspaceDetail = ({ workspaceId, onBack }) => {
   const { user } = useAuth();
@@ -32,11 +33,9 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
   };
 
   const handleMembersAdded = () => {
-    // Refresh workspace data when new members are added
     fetchWorkspaceDetails();
   };
 
-  // Check user permissions
   const canManageMembers = workspace?.userRole === 'Creator' || workspace?.userRole === 'Admin';
   const isCreator = workspace?.userRole === 'Creator';
 
@@ -133,55 +132,70 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
+            <nav className="flex space-x-8 px-6 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('members')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 whitespace-nowrap ${
                   activeTab === 'members'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Members ({acceptedMembers.length})
+                <span>👥</span>
+                <span>Members ({acceptedMembers.length})</span>
               </button>
               {canManageMembers && (
                 <>
                   <button
                     onClick={() => setActiveTab('pending')}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 whitespace-nowrap ${
                       activeTab === 'pending'
                         ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Pending ({pendingInvites.length})
+                    <span>⏳</span>
+                    <span>Pending ({pendingInvites.length})</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('declined')}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 whitespace-nowrap ${
                       activeTab === 'declined'
                         ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Declined ({declinedInvites.length})
+                    <span>❌</span>
+                    <span>Declined ({declinedInvites.length})</span>
                   </button>
                 </>
               )}
               <button
+                onClick={() => setActiveTab('notion')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'notion'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <span>📝</span>
+                <span>Notes & Meetings</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('github')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center space-x-2 whitespace-nowrap ${
                   activeTab === 'github'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                GitHub Integration
+                <span>🔗</span>
+                <span>GitHub Integration</span>
               </button>
             </nav>
           </div>
 
-          <div className="p-6">
+          <div className={activeTab === 'github' || activeTab === 'notion' ? 'p-0' : 'p-6'}>
             {/* Members Tab */}
             {activeTab === 'members' && (
               <div className="space-y-4">
@@ -350,9 +364,18 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
               </div>
             )}
 
+            {/* Notion Integration Tab */}
+            {activeTab === 'notion' && (
+              <div className="p-6">
+                <NotionIntegration workspaceId={workspaceId} />
+              </div>
+            )}
+
             {/* GitHub Integration Tab */}
             {activeTab === 'github' && (
-              <GitHubIntegration workspaceId={workspaceId} workspace={workspace} />
+              <div className="p-6">
+                <GitHubIntegration workspaceId={workspaceId} workspace={workspace} />
+              </div>
             )}
           </div>
         </div>

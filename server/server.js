@@ -21,6 +21,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/workspaces', require('./routes/workspaces'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/github', require('./routes/github'));
+app.use('/api/notion', require('./routes/notion'));
 
 // Test route
 app.get('/', (req, res) => {
