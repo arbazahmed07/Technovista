@@ -1097,4 +1097,110 @@ router.get('/workspace/:workspaceId/branches', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/github/workspace/:workspaceId/summarize
+// @desc    Generate repository summary using Gemini
+// @access  Private
+router.post('/workspace/:workspaceId/summarize', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (!workspace.githubRepository) {
+      return res.status(400).json({ message: 'No GitHub repository connected' });
+    }
+
+    const { owner, repo } = workspace.githubRepository;
+
+    // Fetch repository data
+    const [repoResponse, commitsResponse, issuesResponse, pullRequestsResponse] = await Promise.all([
+      githubAPI.get(`/repos/${owner}/${repo}`),
+      githubAPI.get(`/repos/${owner}/${repo}/commits`, { params: { per_page: 10 } }),
+      githubAPI.get(`/repos/${owner}/${repo}/issues`, { params: { state: 'open', per_page: 10 } }),
+      githubAPI.get(`/repos/${owner}/${repo}/pulls`, { params: { state: 'open', per_page: 10 } })
+    ]);
+
+    const repositoryData = {
+      fullName: repoResponse.data.full_name,
+      description: repoResponse.data.description,
+      language: repoResponse.data.language,
+      stars: repoResponse.data.stargazers_count,
+      forks: repoResponse.data.forks_count,
+      openIssues: repoResponse.data.open_issues_count,
+      createdAt: repoResponse.data.created_at,
+      updatedAt: repoResponse.data.updated_at,
+      defaultBranch: repoResponse.data.default_branch
+    };
+
+    const recentCommits = commitsResponse.data.map(commit => ({
+      message: commit.commit.message,
+      author: {
+        name: commit.commit.author.name,
+        date: commit.commit.author.date
+      }
+    }));
+
+    const issues = issuesResponse.data
+      .filter(issue => !issue.pull_request)
+      .map(issue => ({
+        number: issue.number,
+        title: issue.title,
+        state: issue.state
+      }));
+
+    const pullRequests = pullRequestsResponse.data.map(pr => ({
+      number: pr.number,
+      title: pr.title,
+      state: pr.state
+    }));
+
+    // Generate summary using Gemini
+    const geminiService = require('../services/geminiService');
+    const summaryResponse = await geminiService.generateRepositorySummary(
+      repositoryData,
+      recentCommits,
+      issues,
+      pullRequests
+    );
+
+    let summary;
+    try {
+      summary = JSON.parse(summaryResponse);
+    } catch (parseError) {
+      // Fallback if JSON parsing fails
+      summary = {
+        overview: summaryResponse,
+        techStack: repositoryData.language || 'Not specified',
+        recentActivity: `${recentCommits.length} recent commits, ${issues.length} open issues`,
+        projectHealth: 'Analysis in progress',
+        keyInsights: ['Repository analysis completed'],
+        recommendations: ['Explore the codebase to understand the project structure']
+      };
+    }
+
+    res.json({
+      success: true,
+      summary,
+      generatedAt: new Date()
+    });
+
+  } catch (error) {
+    console.error('Repository summarization error:', error);
+    res.status(500).json({ 
+      message: error.response?.data?.message || 'Failed to generate repository summary' 
+    });
+  }
+});
+
 module.exports = router;

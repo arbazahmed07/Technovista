@@ -124,6 +124,55 @@ Respond ONLY with valid JSON array. No markdown or explanatory text.
 
     return await this.generateContent(prompt);
   }
+
+  async generateRepositorySummary(repositoryData, recentCommits, issues, pullRequests) {
+    const prompt = `
+Analyze the following GitHub repository data and generate a comprehensive summary:
+
+REPOSITORY INFORMATION:
+- Name: ${repositoryData.fullName}
+- Description: ${repositoryData.description || 'No description provided'}
+- Primary Language: ${repositoryData.language || 'Not specified'}
+- Stars: ${repositoryData.stars}
+- Forks: ${repositoryData.forks}
+- Open Issues: ${repositoryData.openIssues}
+- Created: ${repositoryData.createdAt}
+- Last Updated: ${repositoryData.updatedAt}
+- Default Branch: ${repositoryData.defaultBranch}
+
+RECENT ACTIVITY:
+- Recent Commits: ${recentCommits.length} commits
+- Open Issues: ${issues.length} issues
+- Pull Requests: ${pullRequests.length} PRs
+
+RECENT COMMITS (Last 5):
+${recentCommits.slice(0, 5).map(commit => `- ${commit.message.split('\n')[0]} by ${commit.author.name}`).join('\n')}
+
+TOP ISSUES:
+${issues.slice(0, 3).map(issue => `- #${issue.number}: ${issue.title}`).join('\n')}
+
+Please provide a comprehensive repository summary in the following JSON format:
+
+{
+  "overview": "Brief overview of what this repository is about",
+  "techStack": "Primary technologies and frameworks used",
+  "recentActivity": "Summary of recent development activity",
+  "projectHealth": "Assessment of project health based on activity and issues",
+  "keyInsights": [
+    "Important insight about the project",
+    "Another key finding"
+  ],
+  "recommendations": [
+    "Suggestion for new team members",
+    "Area that might need attention"
+  ]
+}
+
+Respond ONLY with valid JSON. No markdown or explanatory text.
+`;
+
+    return await this.generateContent(prompt);
+  }
 }
 
 module.exports = new GeminiService();

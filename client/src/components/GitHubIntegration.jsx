@@ -13,6 +13,11 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
     connect: false,
     disconnect: false
   });
+  
+  // Add summary state
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   // Use props data instead of local state
   const { isConnected, repoInfo, data, loading: githubLoading } = githubData;
@@ -26,6 +31,31 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
   ];
 
   const isCreator = workspace?.userRole === 'Creator';
+
+  // Add summarize function
+  const handleSummarizeRepository = async () => {
+    setSummaryLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `http://localhost:5000/api/github/workspace/${workspaceId}/summarize`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      setSummary(response.data.summary);
+      setShowSummary(true);
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      setError(error.response?.data?.message || 'Failed to generate repository summary');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   const handleConnectRepository = async (e) => {
     e.preventDefault();
@@ -178,6 +208,24 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
                 </div>
               </div>
               <div className="flex items-center space-x-2">
+                {/* Add Summarize Button */}
+                <button
+                  onClick={handleSummarizeRepository}
+                  disabled={summaryLoading}
+                  className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 flex items-center space-x-1"
+                >
+                  {summaryLoading && (
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>{summaryLoading ? 'Analyzing...' : 'Summarize'}</span>
+                </button>
+
                 {activeTab !== 'codebase' && (
                   <button
                     onClick={handleRefresh}
@@ -211,6 +259,99 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
               </div>
             </div>
           </div>
+
+          {/* Summary Modal */}
+          {showSummary && summary && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">Repository Summary</h3>
+                    <button
+                      onClick={() => setShowSummary(false)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Overview */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">📖 Overview</h4>
+                      <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{summary.overview}</p>
+                    </div>
+
+                    {/* Tech Stack */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">⚙️ Technology Stack</h4>
+                      <p className="text-gray-700 bg-blue-50 p-4 rounded-lg">{summary.techStack}</p>
+                    </div>
+
+                    {/* Recent Activity */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">🚀 Recent Activity</h4>
+                      <p className="text-gray-700 bg-green-50 p-4 rounded-lg">{summary.recentActivity}</p>
+                    </div>
+
+                    {/* Project Health */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">💪 Project Health</h4>
+                      <p className="text-gray-700 bg-yellow-50 p-4 rounded-lg">{summary.projectHealth}</p>
+                    </div>
+
+                    {/* Key Insights */}
+                    {summary.keyInsights && summary.keyInsights.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-2">💡 Key Insights</h4>
+                        <ul className="space-y-2">
+                          {summary.keyInsights.map((insight, index) => (
+                            <li key={index} className="flex items-start space-x-2 text-gray-700 bg-purple-50 p-3 rounded-lg">
+                              <span className="text-purple-600 font-bold">•</span>
+                              <span>{insight}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Recommendations */}
+                    {summary.recommendations && summary.recommendations.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-2">🎯 Recommendations</h4>
+                        <ul className="space-y-2">
+                          {summary.recommendations.map((recommendation, index) => (
+                            <li key={index} className="flex items-start space-x-2 text-gray-700 bg-orange-50 p-3 rounded-lg">
+                              <span className="text-orange-600 font-bold">•</span>
+                              <span>{recommendation}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowSummary(false)}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+                    >
+                      Close Summary
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Display for Summary */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md">
+              {error}
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
