@@ -10,20 +10,31 @@ const router = express.Router();
 // @access  Private
 router.get('/pending', auth, async (req, res) => {
   try {
+    console.log('Fetching pending invites for user:', req.user.email);
+    
     const invites = await Invite.find({
       email: req.user.email.toLowerCase(),
       status: 'pending'
     })
     .populate('workspace', 'name description')
-    .populate('invitedBy', 'name email');
+    .populate('invitedBy', 'name email')
+    .sort({ createdAt: -1 });
+
+    console.log('Found invites:', invites.length);
 
     const formattedInvites = invites.map(invite => ({
       id: invite._id,
-      workspaceName: invite.workspace.name,
-      workspaceDescription: invite.workspace.description,
-      invitedBy: invite.invitedBy.name,
-      invitedByEmail: invite.invitedBy.email,
-      createdAt: invite.createdAt
+      workspace: {
+        id: invite.workspace._id,
+        name: invite.workspace.name,
+        description: invite.workspace.description
+      },
+      invitedBy: {
+        name: invite.invitedBy.name,
+        email: invite.invitedBy.email
+      },
+      createdAt: invite.createdAt,
+      email: invite.email
     }));
 
     res.json({
@@ -182,6 +193,47 @@ router.get('/workspace/:workspaceId', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching workspace invites:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @route   DELETE /api/invites/:inviteId
+// @desc    Cancel/Delete a workspace invitation (Creator only)
+// @access  Private
+router.delete('/:inviteId', auth, async (req, res) => {
+  try {
+    const { inviteId } = req.params;
+
+    // Find the invite
+    const invite = await Invite.findById(inviteId).populate('workspace');
+    if (!invite) {
+      return res.status(404).json({ message: 'Invitation not found' });
+    }
+
+    // Find the workspace and check if user is the creator
+    const workspace = await Workspace.findById(invite.workspace._id);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    // Check if user is the creator of the workspace
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership || userMembership.role !== 'Creator') {
+      return res.status(403).json({ message: 'Only workspace creators can cancel invitations' });
+    }
+
+    // Delete the invitation
+    await Invite.findByIdAndDelete(inviteId);
+
+    res.json({
+      success: true,
+      message: 'Invitation cancelled successfully'
+    });
+  } catch (error) {
+    console.error('Error cancelling invite:', error);
     res.status(500).json({ message: error.message });
   }
 });

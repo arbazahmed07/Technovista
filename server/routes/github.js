@@ -1389,4 +1389,183 @@ router.post('/workspace/:workspaceId/architecture', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/github/workspace/:workspaceId/status
+// @desc    Get GitHub connection status for workspace
+// @access  Private
+router.get('/workspace/:workspaceId/status', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    // Find the workspace
+    const workspace = await Workspace.findById(workspaceId)
+      .populate('githubRepository.connectedBy', 'name email');
+    
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    // Check if user is a member
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Not authorized to view this workspace' });
+    }
+
+    // Return repository info if connected
+    if (!workspace.githubRepository?.owner || !workspace.githubRepository?.repo) {
+      return res.json({
+        success: true,
+        connected: false,
+        repository: null
+      });
+    }
+
+    // Fetch fresh repository data from GitHub
+    try {
+      const response = await githubAPI.get(
+        `/repos/${workspace.githubRepository.owner}/${workspace.githubRepository.repo}`
+      );
+      
+      const repoData = response.data;
+      const repository = {
+        id: repoData.id,
+        name: repoData.name,
+        fullName: repoData.full_name,
+        description: repoData.description,
+        private: repoData.private,
+        url: repoData.html_url,
+        cloneUrl: repoData.clone_url,
+        defaultBranch: repoData.default_branch,
+        language: repoData.language,
+        stars: repoData.stargazers_count,
+        forks: repoData.forks_count,
+        watchers: repoData.watchers_count,
+        openIssues: repoData.open_issues_count,
+        size: repoData.size,
+        createdAt: repoData.created_at,
+        updatedAt: repoData.updated_at,
+        pushedAt: repoData.pushed_at,
+        owner: {
+          login: repoData.owner.login,
+          avatar: repoData.owner.avatar_url,
+          url: repoData.owner.html_url,
+          type: repoData.owner.type
+        },
+        topics: repoData.topics,
+        license: repoData.license ? {
+          name: repoData.license.name,
+          spdxId: repoData.license.spdx_id
+        } : null,
+        // Workspace-specific metadata
+        connectedAt: workspace.githubRepository.connectedAt,
+        connectedBy: workspace.githubRepository.connectedBy
+      };
+
+      res.json({
+        success: true,
+        connected: true,
+        repository
+      });
+    } catch (error) {
+      if (error.response?.status === 404) {
+        // Repository no longer exists, remove connection
+        workspace.githubRepository = undefined;
+        await workspace.save();
+        
+        return res.json({
+          success: true,
+          connected: false,
+          repository: null,
+          message: 'Connected repository no longer exists and has been disconnected'
+        });
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error fetching workspace repository status:', error);
+    res.status(500).json({ message: 'Failed to fetch repository status' });
+  }
+});
+
+// @route   GET /api/github/workspace/:workspaceId/releases
+// @desc    Get releases for workspace repository  
+// @access  Private
+router.get('/workspace/:workspaceId/releases', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Not authorized to view this workspace' });
+    }
+
+    if (!workspace.githubRepository?.owner || !workspace.githubRepository?.repo) {
+      return res.status(400).json({ message: 'No GitHub repository connected to this workspace' });
+    }
+
+    const { owner, repo } = workspace.githubRepository;
+
+    const response = await githubAPI.get(`/repos/${owner}/${repo}/releases`, {
+      params: {
+        per_page: 50
+      }
+    });
+
+    const releases = response.data.map(release => ({
+      id: release.id,
+      tagName: release.tag_name,
+      name: release.name,
+      body: release.body,
+      draft: release.draft,
+      prerelease: release.prerelease,
+      author: {
+        login: release.author.login,
+        avatar: release.author.avatar_url,
+        url: release.author.html_url
+      },
+      createdAt: release.created_at,
+      publishedAt: release.published_at,
+      url: release.html_url,
+      tarballUrl: release.tarball_url,
+      zipballUrl: release.zipball_url,
+      assets: release.assets.map(asset => ({
+        name: asset.name,
+        size: asset.size,
+        downloadCount: asset.download_count,
+        url: asset.browser_download_url
+      }))
+    }));
+
+    res.json({
+      success: true,
+      releases,
+      total: releases.length
+    });
+  } catch (error) {
+    console.error('GitHub API Error:', error.response?.data || error.message);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({ message: 'Repository not found' });
+    }
+    
+    if (error.response?.status === 401) {
+      return res.status(401).json({ message: 'GitHub authentication failed' });
+    }
+
+    res.status(500).json({ 
+      message: error.response?.data?.message || 'Failed to fetch releases' 
+    });
+  }
+});
+
 module.exports = router;

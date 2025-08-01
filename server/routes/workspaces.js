@@ -409,7 +409,7 @@ router.post('/:id/invite', auth, async (req, res) => {
         }
       }
 
-      // Check if invite already exists
+      // Check if invite already exists and is pending
       const existingInvite = await Invite.findOne({
         workspace: id,
         email: trimmedEmail,
@@ -420,6 +420,13 @@ router.post('/:id/invite', auth, async (req, res) => {
         duplicateEmails.push(trimmedEmail);
         continue;
       }
+
+      // If there's a declined invite, delete it to allow re-invitation
+      await Invite.deleteOne({
+        workspace: id,
+        email: trimmedEmail,
+        status: 'declined'
+      });
 
       validEmails.push(trimmedEmail);
     }
@@ -435,6 +442,9 @@ router.post('/:id/invite', auth, async (req, res) => {
     );
 
     await Promise.all(invitePromises);
+
+    // TODO: Send email notifications to invited users
+    // await sendInvitationEmails(validEmails, workspace, req.user);
 
     // Prepare response message
     let message = '';
@@ -463,8 +473,8 @@ router.post('/:id/invite', auth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error inviting users to workspace:', error);
-    res.status(500).json({ message: 'Failed to send invitations' });
+    console.error('Error inviting members:', error);
+    res.status(500).json({ message: error.message });
   }
 });
 

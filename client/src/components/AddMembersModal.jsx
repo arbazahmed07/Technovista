@@ -60,6 +60,7 @@ const AddMembersModal = ({ isOpen, onClose, workspaceId, onMembersAdded }) => {
       }, 2000);
 
     } catch (err) {
+      console.error('Error adding members:', err);
       setError(err.response?.data?.message || 'Failed to send invitations');
     } finally {
       setLoading(false);
