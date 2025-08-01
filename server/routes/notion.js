@@ -539,7 +539,7 @@ router.get('/page/:pageId', auth, async (req, res) => {
 });
 
 // @route   PATCH /api/notion/page/:pageId/status
-// @desc    Update page status
+// @desc    Update page status (with property validation)
 // @access  Private
 router.patch('/page/:pageId/status', auth, async (req, res) => {
   try {
@@ -552,7 +552,47 @@ router.patch('/page/:pageId/status', auth, async (req, res) => {
 
     const notionAPI = getNotionAPI();
 
-    const response = await notionAPI.patch(`/pages/${pageId}`, {
+    // First, get the page to check what database it belongs to
+    const pageResponse = await notionAPI.get(`/pages/${pageId}`);
+    const databaseId = pageResponse.data.parent.database_id;
+
+    if (!databaseId) {
+      return res.status(400).json({ 
+        message: 'Page is not part of a database' 
+      });
+    }
+
+    // Get database properties to check if Status property exists
+    const dbResponse = await notionAPI.get(`/databases/${databaseId}`);
+    const availableProperties = dbResponse.data.properties;
+
+    if (!availableProperties.Status) {
+      return res.status(400).json({ 
+        message: 'Status property does not exist in this database. Please add a "Status" select property to your Notion database.',
+        availableProperties: Object.keys(availableProperties)
+      });
+    }
+
+    // Check if the status value is valid for this property
+    const statusProperty = availableProperties.Status;
+    if (statusProperty.type !== 'select') {
+      return res.status(400).json({ 
+        message: 'Status property is not a select type' 
+      });
+    }
+
+    // Get available status options
+    const availableOptions = statusProperty.select.options.map(option => option.name);
+    
+    if (!availableOptions.includes(status)) {
+      return res.status(400).json({ 
+        message: `Invalid status value. Available options: ${availableOptions.join(', ')}`,
+        availableOptions
+      });
+    }
+
+    // Update the page status
+    const updateResponse = await notionAPI.patch(`/pages/${pageId}`, {
       properties: {
         Status: {
           select: {
@@ -564,13 +604,76 @@ router.patch('/page/:pageId/status', auth, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Status updated successfully'
+      message: 'Status updated successfully',
+      newStatus: status
     });
+
   } catch (error) {
     console.error('Notion API Error:', error.response?.data || error.message);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({ 
+        message: 'Page not found or not accessible' 
+      });
+    }
+    
+    if (error.response?.status === 400) {
+      return res.status(400).json({ 
+        message: error.response?.data?.message || 'Invalid request to update page status',
+        details: error.response?.data
+      });
+    }
+    
     res.status(500).json({ 
       message: error.response?.data?.message || 'Failed to update page status',
       details: error.response?.data || error.message
+    });
+  }
+});
+
+// @route   GET /api/notion/database/properties
+// @desc    Get database properties for debugging
+// @access  Private
+router.get('/database/properties', auth, async (req, res) => {
+  try {
+    const databaseId = process.env.NOTION_DATABASE_ID;
+    
+    if (!databaseId) {
+      return res.status(400).json({ 
+        message: 'NOTION_DATABASE_ID not configured' 
+      });
+    }
+
+    const notionAPI = getNotionAPI();
+    const dbResponse = await notionAPI.get(`/databases/${databaseId}`);
+    
+    const properties = {};
+    Object.keys(dbResponse.data.properties).forEach(propName => {
+      const prop = dbResponse.data.properties[propName];
+      properties[propName] = {
+        type: prop.type,
+        id: prop.id
+      };
+      
+      // Add select options if it's a select property
+      if (prop.type === 'select' && prop.select?.options) {
+        properties[propName].options = prop.select.options.map(option => option.name);
+      }
+    });
+
+    res.json({
+      success: true,
+      databaseId,
+      databaseTitle: dbResponse.data.title?.[0]?.plain_text || 'Untitled',
+      properties
+    });
+
+  } catch (error) {
+    console.error('Database properties error:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get database properties',
+      error: error.response?.data || error.message
     });
   }
 });
