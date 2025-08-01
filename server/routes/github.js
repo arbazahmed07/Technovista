@@ -880,4 +880,221 @@ router.get('/repository', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/github/workspace/:workspaceId/files
+// @desc    Get repository file tree
+// @access  Private
+router.get('/workspace/:workspaceId/files', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { path = '', ref = 'main' } = req.query;
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Not authorized to view this workspace' });
+    }
+
+    if (!workspace.githubRepository?.owner || !workspace.githubRepository?.repo) {
+      return res.status(400).json({ message: 'No GitHub repository connected to this workspace' });
+    }
+
+    const { owner, repo } = workspace.githubRepository;
+
+    // Get repository contents
+    const response = await githubAPI.get(`/repos/${owner}/${repo}/contents/${path}`, {
+      params: { ref }
+    });
+
+    const contents = Array.isArray(response.data) ? response.data : [response.data];
+
+    const files = contents.map(item => ({
+      name: item.name,
+      path: item.path,
+      type: item.type, // 'file' or 'dir'
+      size: item.size,
+      sha: item.sha,
+      downloadUrl: item.download_url,
+      htmlUrl: item.html_url,
+      gitUrl: item.git_url
+    }));
+
+    // Sort directories first, then files
+    files.sort((a, b) => {
+      if (a.type === 'dir' && b.type === 'file') return -1;
+      if (a.type === 'file' && b.type === 'dir') return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    res.json({
+      success: true,
+      files,
+      currentPath: path,
+      ref
+    });
+  } catch (error) {
+    console.error('GitHub API Error:', error);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({ message: 'Path not found in repository' });
+    }
+    
+    res.status(500).json({ 
+      message: error.response?.data?.message || 'Failed to fetch repository files' 
+    });
+  }
+});
+
+// @route   GET /api/github/workspace/:workspaceId/file-content
+// @desc    Get file content from repository
+// @access  Private
+router.get('/workspace/:workspaceId/file-content', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { path, ref = 'main' } = req.query;
+
+    if (!path) {
+      return res.status(400).json({ message: 'File path is required' });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Not authorized to view this workspace' });
+    }
+
+    if (!workspace.githubRepository?.owner || !workspace.githubRepository?.repo) {
+      return res.status(400).json({ message: 'No GitHub repository connected to this workspace' });
+    }
+
+    const { owner, repo } = workspace.githubRepository;
+
+    // Get file content
+    const response = await githubAPI.get(`/repos/${owner}/${repo}/contents/${path}`, {
+      params: { ref }
+    });
+
+    const fileData = response.data;
+
+    // Check if it's a file (not directory)
+    if (fileData.type !== 'file') {
+      return res.status(400).json({ message: 'Path is not a file' });
+    }
+
+    // Decode base64 content
+    let content = '';
+    let isBinary = false;
+
+    try {
+      if (fileData.encoding === 'base64') {
+        const buffer = Buffer.from(fileData.content, 'base64');
+        
+        // Check if file is binary
+        isBinary = buffer.includes(0);
+        
+        if (!isBinary) {
+          content = buffer.toString('utf8');
+        }
+      } else {
+        content = fileData.content;
+      }
+    } catch (error) {
+      console.error('Error decoding file content:', error);
+      isBinary = true;
+    }
+
+    // Get file extension for syntax highlighting
+    const extension = path.split('.').pop()?.toLowerCase() || '';
+    
+    const fileInfo = {
+      name: fileData.name,
+      path: fileData.path,
+      size: fileData.size,
+      sha: fileData.sha,
+      content: isBinary ? null : content,
+      isBinary,
+      extension,
+      downloadUrl: fileData.download_url,
+      htmlUrl: fileData.html_url,
+      encoding: fileData.encoding
+    };
+
+    res.json({
+      success: true,
+      file: fileInfo
+    });
+  } catch (error) {
+    console.error('GitHub API Error:', error);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({ message: 'File not found in repository' });
+    }
+    
+    res.status(500).json({ 
+      message: error.response?.data?.message || 'Failed to fetch file content' 
+    });
+  }
+});
+
+// @route   GET /api/github/workspace/:workspaceId/branches
+// @desc    Get repository branches
+// @access  Private
+router.get('/workspace/:workspaceId/branches', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      return res.status(403).json({ message: 'Not authorized to view this workspace' });
+    }
+
+    if (!workspace.githubRepository?.owner || !workspace.githubRepository?.repo) {
+      return res.status(400).json({ message: 'No GitHub repository connected to this workspace' });
+    }
+
+    const { owner, repo } = workspace.githubRepository;
+
+    const response = await githubAPI.get(`/repos/${owner}/${repo}/branches`, {
+      params: { per_page: 100 }
+    });
+
+    const branches = response.data.map(branch => ({
+      name: branch.name,
+      sha: branch.commit.sha,
+      protected: branch.protected
+    }));
+
+    res.json({
+      success: true,
+      branches
+    });
+  } catch (error) {
+    console.error('GitHub API Error:', error);
+    res.status(500).json({ 
+      message: error.response?.data?.message || 'Failed to fetch branches' 
+    });
+  }
+});
+
 module.exports = router;
