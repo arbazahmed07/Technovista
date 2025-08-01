@@ -49,27 +49,27 @@ You are an AI assistant helping new team members navigate their workspace effici
 Based on the following workspace information, create a personalized onboarding path.
 
 WORKSPACE: ${workspaceData.name}
-DESCRIPTION: ${workspaceData.description}
+DESCRIPTION: ${workspaceData.description || 'No description provided'}
 MEMBER COUNT: ${workspaceData.memberCount}
 USER ROLE: ${userProfile.role}
 USER EXPERIENCE: ${userProfile.experienceLevel}
 USER BACKGROUND: ${userProfile.background || 'General'}
 
 WORKSPACE CONTEXT:
-- Team Members: ${workspaceData.members.map(m => `${m.name} (${m.role})`).join(', ')}
+- Team Members: ${workspaceData.members?.map(m => `${m.name} (${m.role})`).join(', ') || 'No members listed'}
 - GitHub Repository: ${workspaceData.githubRepo ? `${workspaceData.githubRepo.owner}/${workspaceData.githubRepo.repo}` : 'Not connected'}
 
-Please provide a structured onboarding path in JSON format with the following sections:
+Create a structured onboarding path in valid JSON format with these exact sections:
 
 {
   "gettingStarted": [
-    "First step to get oriented",
-    "Second step to understand the workspace",
+    "First step to get oriented with the workspace",
+    "Second step to understand the project structure",
     "Third step to start contributing"
   ],
   "keyPeople": [
     "Name (Role) - Why to connect with them",
-    "Another person to meet"
+    "Another important person to meet"
   ],
   "essentialDocuments": [
     "README.md - Project overview and setup instructions",
@@ -85,10 +85,102 @@ Please provide a structured onboarding path in JSON format with the following se
   ]
 }
 
-Respond ONLY with valid JSON. Do not include any markdown formatting or explanatory text.
+IMPORTANT RULES:
+- Return ONLY valid JSON, no markdown formatting
+- No backticks, no code blocks, no extra text
+- Each array should contain 2-5 relevant items
+- Make recommendations specific to ${userProfile.experienceLevel} level
+- Consider ${userProfile.background} background
 `;
 
-    return await this.generateContent(prompt);
+  const response = await this.generateContent(prompt);
+  
+  // Aggressive cleaning of the response
+  let cleanedResponse = response.trim();
+  
+  // Remove any markdown formatting
+  cleanedResponse = cleanedResponse.replace(/```json\s*/g, '');
+  cleanedResponse = cleanedResponse.replace(/```\s*/g, '');
+  cleanedResponse = cleanedResponse.replace(/^json\s*/g, '');
+  
+  // Find the JSON object boundaries
+  const firstBrace = cleanedResponse.indexOf('{');
+  const lastBrace = cleanedResponse.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleanedResponse = cleanedResponse.substring(firstBrace, lastBrace + 1);
+  }
+  
+  // Remove any trailing text after the JSON
+  const lines = cleanedResponse.split('\n');
+  let jsonLines = [];
+  let insideJson = false;
+  let braceCount = 0;
+  
+  for (const line of lines) {
+    if (line.includes('{')) {
+      insideJson = true;
+    }
+    
+    if (insideJson) {
+      jsonLines.push(line);
+      braceCount += (line.match(/\{/g) || []).length;
+      braceCount -= (line.match(/\}/g) || []).length;
+      
+      if (braceCount === 0 && line.includes('}')) {
+        break;
+      }
+    }
+  }
+  
+  cleanedResponse = jsonLines.join('\n');
+  
+  // Validate and return JSON
+  try {
+    const parsed = JSON.parse(cleanedResponse);
+    
+    // Ensure all required fields exist and are arrays
+    const validatedResponse = {
+      gettingStarted: Array.isArray(parsed.gettingStarted) ? parsed.gettingStarted : [],
+      keyPeople: Array.isArray(parsed.keyPeople) ? parsed.keyPeople : [],
+      essentialDocuments: Array.isArray(parsed.essentialDocuments) ? parsed.essentialDocuments : [],
+      criticalCodeAreas: Array.isArray(parsed.criticalCodeAreas) ? parsed.criticalCodeAreas : [],
+      timeline: Array.isArray(parsed.timeline) ? parsed.timeline : []
+    };
+    
+    return JSON.stringify(validatedResponse);
+    
+  } catch (parseError) {
+    console.warn('Generated invalid JSON, returning fallback structure');
+    console.log('Raw response:', response);
+    console.log('Cleaned response:', cleanedResponse);
+    
+    // Return a valid fallback structure
+    return JSON.stringify({
+      gettingStarted: [
+        `Explore the ${workspaceData.name} workspace and understand its purpose`,
+        "Review team members and their roles in the project",
+        "Familiarize yourself with available tools and resources",
+        "Set up your development environment if needed"
+      ],
+      keyPeople: [
+        `Workspace Creator - Primary contact for ${workspaceData.name}`,
+        "Team Members - Collaborate and share knowledge"
+      ],
+      essentialDocuments: [
+        "Project README - Overview and setup instructions",
+        "Team Guidelines - Best practices and workflows"
+      ],
+      criticalCodeAreas: [
+        "Main project directory - Core functionality",
+        "Configuration files - Project settings"
+      ],
+      timeline: [
+        "Week 1: Complete initial workspace exploration and setup",
+        "Week 2: Begin active participation in team activities"
+      ]
+    });
+  }
   }
 
   async generatePersonalizedTasks(userProfile, workspaceData, learningPreferences) {

@@ -1176,18 +1176,49 @@ router.post('/workspace/:workspaceId/summarize', auth, async (req, res) => {
 
     let summary;
     try {
+      // Try to parse the JSON response
       summary = JSON.parse(summaryResponse);
     } catch (parseError) {
-      // Fallback if JSON parsing fails
-      summary = {
-        overview: summaryResponse,
-        techStack: repositoryData.language || 'Not specified',
-        recentActivity: `${recentCommits.length} recent commits, ${issues.length} open issues`,
-        projectHealth: 'Analysis in progress',
-        keyInsights: ['Repository analysis completed'],
-        recommendations: ['Explore the codebase to understand the project structure']
-      };
+      console.warn('Failed to parse Gemini response as JSON, attempting fallback parsing');
+      
+      // Try to extract JSON from the response if it's wrapped in other text
+      const jsonMatch = summaryResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          summary = JSON.parse(jsonMatch[0]);
+        } catch (secondParseError) {
+          // Final fallback - create structured response from raw text
+          summary = {
+            overview: summaryResponse.substring(0, 500) + '...',
+            techStack: repositoryData.language || 'Not specified',
+            recentActivity: `${recentCommits.length} recent commits, ${issues.length} open issues`,
+            projectHealth: 'Analysis completed',
+            keyInsights: ['Repository analysis completed'],
+            recommendations: ['Explore the codebase to understand the project structure']
+          };
+        }
+      } else {
+        // Final fallback
+        summary = {
+          overview: summaryResponse,
+          techStack: repositoryData.language || 'Not specified',
+          recentActivity: `${recentCommits.length} recent commits, ${issues.length} open issues`,
+          projectHealth: 'Analysis completed',
+          keyInsights: ['Repository analysis completed'],
+          recommendations: ['Explore the codebase to understand the project structure']
+        };
+      }
     }
+
+    // Ensure all required fields exist
+    summary = {
+      overview: summary.overview || 'No overview available',
+      techStack: summary.techStack || repositoryData.language || 'Not specified',
+      recentActivity: summary.recentActivity || `${recentCommits.length} recent commits`,
+      projectHealth: summary.projectHealth || 'Analysis completed',
+      keyInsights: Array.isArray(summary.keyInsights) ? summary.keyInsights : [],
+      recommendations: Array.isArray(summary.recommendations) ? summary.recommendations : []
+    };
 
     res.json({
       success: true,

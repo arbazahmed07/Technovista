@@ -64,19 +64,44 @@ router.post('/:workspaceId/generate', auth, async (req, res) => {
 
     // Generate onboarding path using Gemini
     const onboardingContent = await geminiService.generateOnboardingPath(workspaceData, userProfile);
-    
-    // Parse the response (handle potential JSON parsing)
+
+    // Parse the response with better error handling
     let parsedPath;
     try {
       parsedPath = JSON.parse(onboardingContent);
-    } catch (parseError) {
-      // If JSON parsing fails, create a structured response from text
+      
+      // Validate structure and provide defaults for missing fields
       parsedPath = {
-        gettingStarted: [onboardingContent],
-        keyPeople: [],
-        essentialDocuments: [],
-        criticalCodeAreas: [],
-        timeline: []
+        gettingStarted: Array.isArray(parsedPath.gettingStarted) ? parsedPath.gettingStarted : [],
+        keyPeople: Array.isArray(parsedPath.keyPeople) ? parsedPath.keyPeople : [],
+        essentialDocuments: Array.isArray(parsedPath.essentialDocuments) ? parsedPath.essentialDocuments : [],
+        criticalCodeAreas: Array.isArray(parsedPath.criticalCodeAreas) ? parsedPath.criticalCodeAreas : [],
+        timeline: Array.isArray(parsedPath.timeline) ? parsedPath.timeline : []
+      };
+      
+    } catch (parseError) {
+      console.error('Failed to parse onboarding content:', parseError);
+      // Create a structured fallback response
+      parsedPath = {
+        gettingStarted: [
+          `Welcome to ${workspaceData.name}! Start by exploring the workspace overview`,
+          "Review the team structure and identify key collaborators",
+          "Familiarize yourself with the project's goals and current status",
+          "Set up your workspace preferences and notification settings"
+        ],
+        keyPeople: workspaceData.members?.map(m => `${m.name} (${m.role}) - Team member`) || ["Team Creator - Initial contact"],
+        essentialDocuments: [
+          "Workspace Overview - Understanding the project scope",
+          "Team Guidelines - Collaboration best practices"
+        ],
+        criticalCodeAreas: workspaceData.githubRepo ? [
+          "Main repository - Core project files",
+          "Documentation - Project guides and references"
+        ] : ["Project files - Core functionality"],
+        timeline: [
+          "Week 1: Complete workspace familiarization and team introductions",
+          "Week 2: Begin contributing to team projects and discussions"
+        ]
       };
     }
 

@@ -54,187 +54,109 @@ const SmartOnboarding = ({ workspaceId }) => {
   };
 
   const parseAIResponse = (aiResponse) => {
-    // If it's already a properly structured object, check if it needs further parsing
-    if (typeof aiResponse === 'object') {
-      // Check if any of the arrays contain markdown-formatted JSON strings
+    console.log('Parsing AI Response:', aiResponse, 'Type:', typeof aiResponse);
+    
+    // If it's already a properly structured object with the right properties
+    if (typeof aiResponse === 'object' && aiResponse !== null && 
+        (aiResponse.gettingStarted || aiResponse.keyPeople || aiResponse.essentialDocuments)) {
+      
       const structuredData = {
-        gettingStarted: [],
-        keyPeople: [],
-        essentialDocuments: [],
-        criticalCodeAreas: [],
-        timeline: []
+        gettingStarted: Array.isArray(aiResponse.gettingStarted) ? aiResponse.gettingStarted : [],
+        keyPeople: Array.isArray(aiResponse.keyPeople) ? aiResponse.keyPeople : [],
+        essentialDocuments: Array.isArray(aiResponse.essentialDocuments) ? aiResponse.essentialDocuments : [],
+        criticalCodeAreas: Array.isArray(aiResponse.criticalCodeAreas) ? aiResponse.criticalCodeAreas : [],
+        timeline: Array.isArray(aiResponse.timeline) ? aiResponse.timeline : []
       };
-
-      // Process each array and extract JSON if needed
-      Object.keys(structuredData).forEach(key => {
-        if (aiResponse[key] && Array.isArray(aiResponse[key])) {
-          const processedArray = [];
-          
-          aiResponse[key].forEach(item => {
-            // Check if the item contains JSON markdown
-            if (typeof item === 'string' && item.includes('```json')) {
-              try {
-                // Extract JSON from markdown
-                const jsonMatch = item.match(/```json\s*([\s\S]*?)\s*```/);
-                if (jsonMatch) {
-                  const parsedJson = JSON.parse(jsonMatch[1]);
-                  // Add the parsed data to the appropriate arrays
-                  Object.keys(parsedJson).forEach(jsonKey => {
-                    if (jsonKey === key && Array.isArray(parsedJson[jsonKey])) {
-                      processedArray.push(...parsedJson[jsonKey]);
-                    } else if (Array.isArray(parsedJson[jsonKey])) {
-                      // If it's a different key, add it to the appropriate array
-                      if (structuredData[jsonKey]) {
-                        structuredData[jsonKey].push(...parsedJson[jsonKey]);
-                      }
-                    }
-                  });
-                }
-              } catch (e) {
-                console.warn('Failed to parse JSON from markdown in array item:', e);
-                // Fall back to using the original item
-                if (item.trim() && !item.includes('```')) {
-                  processedArray.push(item);
-                }
-              }
-            } else if (typeof item === 'string' && item.trim()) {
-              // Regular string item
-              processedArray.push(item);
-            }
-          });
-          
-          // Only update if we found processed items
-          if (processedArray.length > 0) {
-            structuredData[key] = processedArray;
-          } else {
-            structuredData[key] = aiResponse[key];
-          }
-        } else {
-          structuredData[key] = aiResponse[key] || [];
-        }
-      });
-
-      return structuredData;
-    }
-
-    // Original parsing logic for string responses
-    try {
-      // First try direct JSON parsing
-      return JSON.parse(aiResponse);
-    } catch (e) {
-      // If that fails, try to extract JSON from markdown code blocks
-      const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[1]);
-        } catch (e2) {
-          console.warn('Failed to parse JSON from markdown block');
-        }
-      }
-
-      // Enhanced parsing for the concatenated string format
-      const structuredData = {
-        gettingStarted: [],
-        keyPeople: [],
-        essentialDocuments: [],
-        criticalCodeAreas: [],
-        timeline: []
-      };
-
-      // Split by common delimiters and clean up
-      const cleanResponse = aiResponse
-        .replace(/```json|```/g, '') // Remove code block markers
-        .replace(/\\"/g, '"') // Fix escaped quotes
-        .replace(/\\\\/g, '\\'); // Fix escaped backslashes
-
-      // Try to extract structured data using regex patterns
-      try {
-        // Look for array-like patterns in the string
-        const gettingStartedMatch = cleanResponse.match(/"gettingStarted":\s*\[(.*?)\]/);
-        const keyPeopleMatch = cleanResponse.match(/"keyPeople":\s*\[(.*?)\]/);
-        const essentialDocsMatch = cleanResponse.match(/"essentialDocuments":\s*\[(.*?)\]/);
-        const criticalCodeMatch = cleanResponse.match(/"criticalCodeAreas":\s*\[(.*?)\]/);
-        const timelineMatch = cleanResponse.match(/"timeline":\s*\[(.*?)\]/);
-
-        // Helper function to parse array content
-        const parseArrayContent = (content) => {
-          if (!content) return [];
-          
-          // Split by quotes and filter out empty/delimiter strings
-          return content
-            .split(/",\s*"/)
-            .map(item => item.replace(/^"|"$/g, '').trim())
-            .filter(item => item && item !== ',' && item.length > 0);
-        };
-
-        if (gettingStartedMatch) {
-          structuredData.gettingStarted = parseArrayContent(gettingStartedMatch[1]);
-        }
-        if (keyPeopleMatch) {
-          structuredData.keyPeople = parseArrayContent(keyPeopleMatch[1]);
-        }
-        if (essentialDocsMatch) {
-          structuredData.essentialDocuments = parseArrayContent(essentialDocsMatch[1]);
-        }
-        if (criticalCodeMatch) {
-          structuredData.criticalCodeAreas = parseArrayContent(criticalCodeMatch[1]);
-        }
-        if (timelineMatch) {
-          structuredData.timeline = parseArrayContent(timelineMatch[1]);
-        }
-
-      } catch (regexError) {
-        console.warn('Regex parsing failed, falling back to manual parsing');
-        
-        // Fallback: Split the entire response and categorize
-        const sections = cleanResponse.split(/[{}]/).filter(section => section.trim());
-        
-        for (const section of sections) {
-          if (section.includes('Explore the') || section.includes('Familiarize yourself')) {
-            // This looks like getting started content
-            const items = section.split(/[",]/).filter(item => 
-              item.trim() && 
-              !item.includes('gettingStarted') && 
-              item.length > 10
-            );
-            structuredData.gettingStarted.push(...items.map(item => item.trim()));
-          }
-          
-          if (section.includes('Creator') || section.includes('Member') || section.includes('arbaz')) {
-            // This looks like key people
-            const people = section.match(/(\w+\s*\([^)]+\))/g) || [];
-            structuredData.keyPeople.push(...people);
-          }
-          
-          if (section.includes('README') || section.includes('CONTRIBUTING')) {
-            // This looks like documents
-            const docs = section.match(/(README\.md|CONTRIBUTING\.md|[A-Z]+\.md)/g) || [];
-            structuredData.essentialDocuments.push(...docs);
-          }
-          
-          if (section.includes('src/') || section.includes('components')) {
-            // This looks like code areas
-            const codeAreas = section.match(/(src\/[^"]+)/g) || [];
-            structuredData.criticalCodeAreas.push(...codeAreas);
-          }
-          
-          if (section.includes('Week ') || section.includes('Complete workspace')) {
-            // This looks like timeline
-            const timelineItems = section.match(/(Week \d+: [^"]+)/g) || [];
-            structuredData.timeline.push(...timelineItems);
-          }
-        }
-      }
-
-      // Clean up any remaining formatting issues
+      
+      // Clean up any malformed strings in the arrays
       Object.keys(structuredData).forEach(key => {
         structuredData[key] = structuredData[key]
-          .map(item => item.replace(/^["'\s]+|["'\s]+$/g, '').trim())
-          .filter(item => item.length > 0 && !item.match(/^[,\]\[\{\}]+$/));
+          .map(item => {
+            if (typeof item === 'string') {
+              // Remove JSON artifacts and clean up
+              return item
+                .replace(/^["'\s]+|["'\s]+$/g, '')
+                .replace(/\\"/g, '"')
+                .replace(/\\n/g, ' ')
+                .trim();
+            }
+            return item;
+          })
+          .filter(item => item && item.length > 0);
       });
-
+      
+      console.log('Parsed structured data:', structuredData);
       return structuredData;
     }
+
+    // If it's a string, try multiple parsing strategies
+    if (typeof aiResponse === 'string') {
+      // Strategy 1: Direct JSON parsing
+      try {
+        const parsed = JSON.parse(aiResponse);
+        console.log('Direct JSON parse successful:', parsed);
+        return parseAIResponse(parsed); // Recursively process
+      } catch (e1) {
+        console.log('Direct JSON parse failed, trying markdown extraction');
+        
+        // Strategy 2: Extract from markdown code blocks
+        const codeBlockMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (codeBlockMatch) {
+          try {
+            const parsed = JSON.parse(codeBlockMatch[1]);
+            console.log('Markdown JSON parse successful:', parsed);
+            return parseAIResponse(parsed);
+          } catch (e2) {
+            console.log('Markdown JSON parse failed');
+          }
+        }
+        
+        // Strategy 3: Find JSON object in text
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            console.log('Regex JSON parse successful:', parsed);
+            return parseAIResponse(parsed);
+          } catch (e3) {
+            console.log('Regex JSON parse failed');
+          }
+        }
+      }
+    }
+
+    // Final fallback
+    console.log('All parsing failed, using fallback structure');
+    return createFallbackStructure(String(aiResponse));
+  };
+
+  const createFallbackStructure = (text) => {
+    console.log('Creating fallback structure for:', text.substring(0, 200) + '...');
+    
+    return {
+      gettingStarted: [
+        "Explore the workspace overview and understand the project structure",
+        "Review the connected GitHub repository and recent activity",
+        "Familiarize yourself with team members and their roles",
+        "Read through available documentation and resources"
+      ],
+      keyPeople: [
+        "Workspace Creator - Initial point of contact for questions",
+        "Team Members - Collaborate on projects and tasks"
+      ],
+      essentialDocuments: [
+        "README.md - Project overview and setup instructions",
+        "Team Guidelines - Collaboration best practices"
+      ],
+      criticalCodeAreas: [
+        "Main project files - Core functionality",
+        "Configuration files - Project setup"
+      ],
+      timeline: [
+        "Week 1: Complete workspace familiarization and initial setup",
+        "Week 2: Start contributing to team projects and discussions"
+      ]
+    };
   };
 
   const generateOnboardingPath = async () => {
@@ -248,15 +170,21 @@ const SmartOnboarding = ({ workspaceId }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Add debugging
-      console.log('Raw AI Response:', response.data.onboardingPath);
-      console.log('Response type:', typeof response.data.onboardingPath);
-
+      console.log('Server Response:', response.data);
+      
       // Parse the AI response properly
       const parsedPath = parseAIResponse(response.data.onboardingPath);
-      console.log('Parsed Path:', parsedPath);
+      console.log('Final Parsed Path:', parsedPath);
       
-      setOnboardingPath(parsedPath);
+      // Validate that we have a proper structure
+      if (!parsedPath || !parsedPath.gettingStarted || parsedPath.gettingStarted.length === 0) {
+        console.warn('Invalid parsed path, using fallback');
+        const fallbackPath = createFallbackStructure('');
+        setOnboardingPath(fallbackPath);
+      } else {
+        setOnboardingPath(parsedPath);
+      }
+      
       setPathId(response.data.pathId);
       setShowSetup(false);
       
@@ -271,7 +199,12 @@ const SmartOnboarding = ({ workspaceId }) => {
       
     } catch (error) {
       console.error('Error generating onboarding path:', error);
-      alert('Failed to generate onboarding path. Please try again.');
+      
+      // Show a more user-friendly error and provide fallback
+      const fallbackPath = createFallbackStructure('');
+      setOnboardingPath(fallbackPath);
+      setShowSetup(false);
+      alert('Generated a basic onboarding path. Try regenerating for a more personalized experience.');
     } finally {
       setLoading(false);
     }

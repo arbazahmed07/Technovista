@@ -47,7 +47,26 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
         }
       );
 
-      setSummary(response.data.summary);
+      // Parse the summary if it's a string
+      let parsedSummary = response.data.summary;
+      if (typeof parsedSummary === 'string') {
+        try {
+          parsedSummary = JSON.parse(parsedSummary);
+        } catch (parseError) {
+          console.error('Failed to parse summary JSON:', parseError);
+          // Create a fallback structure
+          parsedSummary = {
+            overview: parsedSummary,
+            techStack: 'Not specified',
+            recentActivity: 'Analysis in progress',
+            projectHealth: 'Analysis in progress',
+            keyInsights: [],
+            recommendations: []
+          };
+        }
+      }
+
+      setSummary(parsedSummary);
       setShowSummary(true);
     } catch (error) {
       console.error('Error generating summary:', error);
