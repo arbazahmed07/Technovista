@@ -160,4 +160,125 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/workspaces/:id/invite
+// @desc    Invite users to an existing workspace
+// @access  Private (Creator only)
+router.post('/:id/invite', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { emails } = req.body;
+
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ message: 'Email addresses are required' });
+    }
+
+    // Find the workspace
+    const workspace = await Workspace.findById(id);
+    if (!workspace) {
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    // Check if user is the creator
+    const userMembership = workspace.members.find(
+      member => member.user.toString() === req.user.id
+    );
+
+    if (!userMembership || userMembership.role !== 'Creator') {
+      return res.status(403).json({ 
+        message: 'Only workspace creators can invite new members' 
+      });
+    }
+
+    // Validate emails
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const validEmails = [];
+    const invalidEmails = [];
+    const duplicateEmails = [];
+    const existingMembers = [];
+
+    for (const email of emails) {
+      const trimmedEmail = email.trim().toLowerCase();
+      
+      if (!trimmedEmail) continue;
+      
+      if (!emailRegex.test(trimmedEmail)) {
+        invalidEmails.push(email);
+        continue;
+      }
+
+      if (trimmedEmail === req.user.email.toLowerCase()) {
+        continue; // Skip inviting yourself
+      }
+
+      // Check if user is already a member
+      const existingUser = await User.findOne({ email: trimmedEmail });
+      if (existingUser) {
+        const isMember = workspace.members.some(
+          member => member.user.toString() === existingUser._id.toString()
+        );
+        if (isMember) {
+          existingMembers.push(trimmedEmail);
+          continue;
+        }
+      }
+
+      // Check if invite already exists
+      const existingInvite = await Invite.findOne({
+        workspace: id,
+        email: trimmedEmail,
+        status: 'pending'
+      });
+
+      if (existingInvite) {
+        duplicateEmails.push(trimmedEmail);
+        continue;
+      }
+
+      validEmails.push(trimmedEmail);
+    }
+
+    // Create invitations for valid emails
+    const invitePromises = validEmails.map(email => 
+      Invite.create({
+        workspace: id,
+        email,
+        invitedBy: req.user.id,
+        status: 'pending'
+      })
+    );
+
+    await Promise.all(invitePromises);
+
+    // Prepare response message
+    let message = '';
+    if (validEmails.length > 0) {
+      message += `${validEmails.length} invitation(s) sent successfully. `;
+    }
+    if (invalidEmails.length > 0) {
+      message += `${invalidEmails.length} invalid email(s) skipped. `;
+    }
+    if (duplicateEmails.length > 0) {
+      message += `${duplicateEmails.length} already invited. `;
+    }
+    if (existingMembers.length > 0) {
+      message += `${existingMembers.length} already member(s). `;
+    }
+
+    res.json({
+      success: true,
+      message: message.trim(),
+      invited: validEmails.length,
+      details: {
+        validEmails,
+        invalidEmails,
+        duplicateEmails,
+        existingMembers
+      }
+    });
+  } catch (error) {
+    console.error('Error inviting users to workspace:', error);
+    res.status(500).json({ message: 'Failed to send invitations' });
+  }
+});
+
 module.exports = router;
