@@ -141,6 +141,7 @@ app.use('/api/notion', require('./routes/notion'));
 app.use('/api/timeline', require('./routes/timeline'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/meet', require('./routes/meet'));
+app.use('/api/onboarding', require('./routes/onboarding'));
 
 // Test route
 app.get('/', (req, res) => {
