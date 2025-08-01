@@ -6,6 +6,7 @@ import GitHubIntegration from './GitHubIntegration';
 import NotionIntegration from './NotionIntegration';
 import Timeline from './Timeline';
 import Chat from './Chat';
+import GoogleMeetIntegration from './GoogleMeetIntegration';
 
 const WorkspaceDetail = ({ workspaceId, onBack }) => {
   const { user } = useAuth();
@@ -232,10 +233,10 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation Tabs */}
-        <div className="border-b border-gray-200 mb-8">
-          <nav className="-mb-px flex space-x-8">
+      {/* Navigation Tabs */}
+      <nav className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-8">
             {['members', 'pending', 'github', 'notion', 'timeline', 'chat'].map((tab) => (
               <button
                 key={tab}
@@ -249,9 +250,21 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
                 {tab === 'github' ? 'GitHub' : tab === 'notion' ? 'Notion' : tab}
               </button>
             ))}
-          </nav>
+            <button
+              onClick={() => setActiveTab('meet')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'meet'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              🎥 Google Meet
+            </button>
+          </div>
         </div>
+      </nav>
 
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Tab Content */}
         {/* Members Tab */}
         {activeTab === 'members' && (
@@ -451,6 +464,13 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
         {activeTab === 'chat' && (
           <div className="h-96">
             <Chat workspaceId={workspaceId} />
+          </div>
+        )}
+
+        {/* Google Meet Tab */}
+        {activeTab === 'meet' && (
+          <div className="p-6">
+            <GoogleMeetIntegration workspaceId={workspaceId} />
           </div>
         )}
       </main>

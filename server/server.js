@@ -140,6 +140,7 @@ app.use('/api/github', require('./routes/github'));
 app.use('/api/notion', require('./routes/notion'));
 app.use('/api/timeline', require('./routes/timeline'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/meet', require('./routes/meet'));
 
 // Test route
 app.get('/', (req, res) => {
