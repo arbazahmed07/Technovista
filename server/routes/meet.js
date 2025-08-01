@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const Meeting = require('../models/Meeting');
 const Workspace = require('../models/Workspace');
 const User = require('../models/User');
+const MeetingCaption = require('../models/MeetingCaption');
 const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
@@ -329,6 +330,7 @@ router.get('/workspace/:workspaceId/meetings', auth, async (req, res) => {
 
     // Validate workspace access
     const workspace = await Workspace.findById(workspaceId);
+    console.log('Fetching meetings for workspace:', workspaceId, 'User:', req.user.id);
     if (!workspace) {
       return res.status(404).json({ message: 'Workspace not found' });
     }
@@ -421,5 +423,149 @@ router.delete('/:meetingId', auth, async (req, res) => {
     res.status(500).json({ message: 'Failed to cancel meeting' });
   }
 });
+
+// @route   POST /api/meet/:meetingId/captions
+// @desc    Save meeting caption
+// @access  Private
+router.post('/:meetingId/captions', auth, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const { text, speaker, timestamp, confidence } = req.body;
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting not found' });
+    }
+
+    // Check if user is part of the meeting
+    const isParticipant = meeting.organizer.toString() === req.user.id ||
+      meeting.attendees.some(attendee => attendee.user?.toString() === req.user.id);
+    
+    if (!isParticipant) {
+      return res.status(403).json({ message: 'Access denied to this meeting' });
+    }
+
+    const caption = new MeetingCaption({
+      meeting: meetingId,
+      text: text.trim(),
+      speaker: speaker || req.user.name,
+      timestamp: timestamp || new Date(),
+      confidence,
+      userId: req.user.id
+    });
+
+    await caption.save();
+
+    res.status(201).json({
+      success: true,
+      caption
+    });
+
+  } catch (error) {
+    console.error('Error saving caption:', error);
+    res.status(500).json({ message: 'Failed to save caption' });
+  }
+});
+
+// @route   GET /api/meet/:meetingId/captions
+// @desc    Get meeting captions
+// @access  Private
+router.get('/:meetingId/captions', auth, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting not found' });
+    }
+
+    const captions = await MeetingCaption.find({ meeting: meetingId })
+      .populate('userId', 'name')
+      .sort({ timestamp: 1 });
+
+    res.json({
+      success: true,
+      captions
+    });
+
+  } catch (error) {
+    console.error('Error fetching captions:', error);
+    res.status(500).json({ message: 'Failed to fetch captions' });
+  }
+});
+
+// @route   POST /api/meet/:meetingId/generate-notes
+// @desc    Generate meeting notes from captions
+// @access  Private
+router.post('/:meetingId/generate-notes', auth, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const { captions } = req.body;
+
+    const meeting = await Meeting.findById(meetingId);
+    if (!meeting) {
+      return res.status(404).json({ message: 'Meeting not found' });
+    }
+
+    // Generate structured meeting notes
+    const meetingNotes = generateMeetingNotesFromCaptions(captions, meeting);
+    
+    // Update meeting with generated notes
+    meeting.notes = meetingNotes;
+    meeting.status = 'completed';
+    await meeting.save();
+
+    res.json({
+      success: true,
+      notes: meetingNotes,
+      message: 'Meeting notes generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error generating meeting notes:', error);
+    res.status(500).json({ message: 'Failed to generate meeting notes' });
+  }
+});
+
+function generateMeetingNotesFromCaptions(captions, meeting) {
+  const sortedCaptions = captions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  
+  let notes = `# Meeting Notes: ${meeting.title}\n\n`;
+  notes += `**Date:** ${meeting.scheduledTime.toLocaleDateString()}\n`;
+  notes += `**Duration:** ${meeting.duration} minutes\n`;
+  notes += `**Organizer:** ${meeting.organizer?.name || 'Unknown'}\n\n`;
+  
+  notes += `## Discussion Summary\n\n`;
+  
+  // Group captions by speaker and time segments
+  const speakers = {};
+  sortedCaptions.forEach(caption => {
+    if (!speakers[caption.speaker]) {
+      speakers[caption.speaker] = [];
+    }
+    speakers[caption.speaker].push(caption);
+  });
+  
+  // Create timeline of discussion
+  sortedCaptions.forEach((caption, index) => {
+    const time = new Date(caption.timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    notes += `**[${time}] ${caption.speaker}:** ${caption.text}\n\n`;
+  });
+  
+  notes += `## Key Points\n\n`;
+  notes += `- [Extract key discussion points here]\n`;
+  notes += `- [Add action items]\n`;
+  notes += `- [Note important decisions]\n\n`;
+  
+  notes += `## Action Items\n\n`;
+  notes += `- [ ] [Add specific action items from discussion]\n`;
+  notes += `- [ ] [Assign responsibilities]\n`;
+  notes += `- [ ] [Set deadlines]\n\n`;
+  
+  return notes;
+}
 
 module.exports = router;

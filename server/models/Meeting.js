@@ -82,6 +82,14 @@ const meetingSchema = new mongoose.Schema({
   notes: {
     type: String,
     trim: true
+  },
+  captionsEnabled: {
+    type: Boolean,
+    default: false
+  },
+  transcript: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import MeetingCaptions from './MeetingCaptions';
 
 const GoogleMeetIntegration = ({ workspaceId }) => {
   const [meetings, setMeetings] = useState([]);
@@ -17,6 +18,8 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
     isRecurring: false,
     recurrencePattern: 'weekly'
   });
+  const [activeMeeting, setActiveMeeting] = useState(null);
+  const [showCaptions, setShowCaptions] = useState(false);
 
   useEffect(() => {
     checkAuthStatus();
@@ -176,6 +179,17 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
     }
   };
 
+  const startMeeting = (meeting) => {
+    setActiveMeeting(meeting);
+    setShowCaptions(true);
+    joinMeeting(meeting);
+  };
+
+  const endMeeting = () => {
+    setActiveMeeting(null);
+    setShowCaptions(false);
+  };
+
   const deleteMeeting = async (meetingId) => {
     if (!window.confirm('Are you sure you want to cancel this meeting?')) {
       return;
@@ -287,6 +301,9 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
           ) : (
             meetings.map((meeting) => {
               const { date, time } = formatDateTime(meeting.scheduledTime);
+              const isMeetingTime = new Date() >= new Date(meeting.scheduledTime) && 
+                                    new Date() <= new Date(meeting.scheduledTime.getTime() + meeting.duration * 60000);
+              
               return (
                 <div key={meeting._id} className="bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start">
@@ -321,9 +338,17 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
                       )}
                     </div>
                     <div className="flex items-center space-x-2 ml-4">
+                      {isMeetingTime && (
+                        <button
+                          onClick={() => startMeeting(meeting)}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
+                        >
+                          Start with Captions
+                        </button>
+                      )}
                       <button
                         onClick={() => joinMeeting(meeting)}
-                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
                       >
                         Join Meeting
                       </button>
@@ -339,6 +364,29 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
               );
             })
           )}
+        </div>
+      )}
+
+      {/* Active Meeting Captions */}
+      {showCaptions && activeMeeting && (
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="text-lg font-semibold">Meeting in Progress: {activeMeeting.title}</h4>
+            <button
+              onClick={endMeeting}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+            >
+              End Meeting
+            </button>
+          </div>
+          
+          <MeetingCaptions
+            meetingId={activeMeeting._id}
+            isActive={true}
+            onCaptionsUpdate={(captions) => {
+              console.log('Captions updated:', captions.length);
+            }}
+          />
         </div>
       )}
 
