@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
+import { SocketProvider } from './context/SocketContext';
 import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import './App.css';
@@ -31,7 +32,9 @@ const AuthApp = () => {
 function App() {
   return (
     <AuthProvider>
-      <AuthApp />
+      <SocketProvider>
+        <AuthApp />
+      </SocketProvider>
     </AuthProvider>
   );
 }
