@@ -4,7 +4,8 @@ class ArchitectureService {
       if (process.env.GEMINI_API_KEY) {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        // Updated model name to the current supported version
+        this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         this.isAvailable = true;
         console.log('✅ Gemini AI initialized successfully');
       } else {
@@ -73,9 +74,24 @@ Frontend files: ${analysis.structure.frontend.length}
 Backend files: ${analysis.structure.backend.length}
 Total files: ${analysis.totalFiles}
 
-Generate ONLY valid Mermaid flowchart syntax starting with "flowchart TD".
-Show user flow, main components, and data flow.
-Keep it simple with 5-8 nodes maximum.`;
+STRICT RULES:
+- Generate ONLY valid Mermaid flowchart syntax starting with "flowchart TD"
+- Use simple node names like A, B, C, etc.
+- Use ONLY alphanumeric characters and spaces in node labels
+- NO parentheses, special characters, or numbers in brackets
+- Use only --> for connections
+- Keep it simple with 5-8 nodes maximum
+
+CORRECT FORMAT:
+flowchart TD
+    A[User] --> B[Frontend]
+    B --> C[API]
+    C --> D[Database]
+
+WRONG FORMAT (DO NOT USE):
+A[Frontend (62 files)]
+B[API-Gateway]
+C[Data Base]`;
 
     try {
       const response = await this.model.generateContent(prompt);
@@ -88,8 +104,20 @@ Keep it simple with 5-8 nodes maximum.`;
   }
 
   async generateComponentDiagram(analysis, repositoryData) {
-    const prompt = `Create a Mermaid.js component diagram for ${repositoryData.full_name || repositoryData.name}.
-    Return ONLY valid Mermaid graph syntax showing main components.`;
+    const prompt = `Create a Mermaid.js flowchart for ${repositoryData.full_name || repositoryData.name}.
+    
+STRICT RULES:
+- Generate ONLY valid Mermaid flowchart syntax starting with "flowchart TD"
+- Use simple node names like A, B, C, etc.
+- Use ONLY alphanumeric characters and spaces in node labels
+- NO parentheses, special characters, or numbers in brackets
+- Use only --> for connections
+
+CORRECT FORMAT:
+flowchart TD
+    A[Frontend] --> B[API Gateway]
+    B --> C[Services]
+    C --> D[Database]`;
 
     try {
       if (!this.isAvailable) throw new Error('AI not available');
@@ -105,7 +133,26 @@ Keep it simple with 5-8 nodes maximum.`;
     try {
       if (!this.isAvailable) throw new Error('AI not available');
       const prompt = `Create a Mermaid.js sequence diagram for ${repositoryData.full_name || repositoryData.name}.
-      Return ONLY valid sequenceDiagram syntax.`;
+
+STRICT RULES:
+- Generate ONLY valid sequenceDiagram syntax
+- Use simple participant names like User, Frontend, API, Database
+- NO special characters in participant names
+- Show basic user interaction flow
+
+CORRECT FORMAT:
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant A as API
+    participant D as Database
+    
+    U->>F: User Action
+    F->>A: API Request
+    A->>D: Query Data
+    D-->>A: Return Data
+    A-->>F: Response
+    F-->>U: Update UI`;
       
       const response = await this.model.generateContent(prompt);
       const result = response.response.text();
@@ -119,7 +166,27 @@ Keep it simple with 5-8 nodes maximum.`;
     try {
       if (!this.isAvailable) throw new Error('AI not available');
       const prompt = `Create a Mermaid.js class diagram for ${repositoryData.full_name || repositoryData.name}.
-      Return ONLY valid classDiagram syntax.`;
+
+STRICT RULES:
+- Generate ONLY valid classDiagram syntax
+- Use simple class names with NO special characters
+- Use basic relationships only
+
+CORRECT FORMAT:
+classDiagram
+    class User {
+        +String name
+        +String email
+        +login()
+        +logout()
+    }
+    
+    class Application {
+        +init()
+        +run()
+    }
+    
+    User --> Application`;
       
       const response = await this.model.generateContent(prompt);
       const result = response.response.text();
@@ -212,17 +279,19 @@ Keep it simple with 5-8 nodes maximum.`;
   }
 
   cleanMermaidCode(code) {
-    if (!code) return 'flowchart TD\n    A[Start] --> B[End]';
+    if (!code) return this.getFallbackFlowchart({ name: 'Unknown' });
     
     // Remove markdown formatting and extra content
     code = code.replace(/```mermaid\n?/g, '').replace(/```/g, '');
     code = code.replace(/Here's.*?:\s*/i, ''); // Remove explanatory text
+    code = code.replace(/^```\s*/, '').replace(/\s*```$/, ''); // Remove any remaining backticks
     
     // Find the actual mermaid code
-    const lines = code.split('\n');
+    const lines = code.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     let startIndex = -1;
-    let endIndex = lines.length;
+    let validLines = [];
     
+    // Find start of diagram
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (line.startsWith('flowchart') || line.startsWith('graph') || 
@@ -233,22 +302,67 @@ Keep it simple with 5-8 nodes maximum.`;
     }
     
     if (startIndex === -1) {
-      // No proper diagram declaration found, add one
-      code = 'flowchart TD\n' + code;
-    } else {
-      code = lines.slice(startIndex, endIndex).join('\n');
+      // No proper diagram declaration found, return fallback
+      return this.getFallbackFlowchart({ name: 'Unknown' });
     }
-
-    // Clean up extra whitespace
-    code = code.trim();
     
-    return code;
+    // Extract valid lines from start
+    validLines = lines.slice(startIndex);
+    
+    // Basic syntax validation and cleaning
+    let cleanedCode = validLines.join('\n');
+    
+    // Fix common syntax issues
+    cleanedCode = cleanedCode.replace(/\{.*?\}/g, ''); // Remove any braces that cause issues
+    cleanedCode = cleanedCode.replace(/component\s+/g, ''); // Remove 'component' keyword
+    cleanedCode = cleanedCode.replace(/\s+-->\s+/g, ' --> '); // Normalize arrows
+    cleanedCode = cleanedCode.replace(/\s+->\s+/g, ' --> '); // Fix single arrows
+    
+    // Fix problematic characters in node labels
+    cleanedCode = cleanedCode.replace(/\[([^\]]*)\([^)]*\)([^\]]*)\]/g, '[$1$2]'); // Remove parentheses content
+    cleanedCode = cleanedCode.replace(/\[([^\]]*)-([^\]]*)\]/g, '[$1 $2]'); // Replace hyphens with spaces
+    cleanedCode = cleanedCode.replace(/\[([^\]]*)[^a-zA-Z0-9\s\]]+([^\]]*)\]/g, '[$1$2]'); // Remove special chars
+    
+    // Ensure node labels don't have problematic characters
+    const nodePattern = /(\w+)\[(.*?)\]/g;
+    cleanedCode = cleanedCode.replace(nodePattern, (match, nodeId, label) => {
+      // Clean the label to only contain alphanumeric and spaces
+      const cleanLabel = label.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+      return `${nodeId}[${cleanLabel || 'Component'}]`;
+    });
+    
+    // Validate basic structure
+    if (cleanedCode.includes('flowchart') || cleanedCode.includes('graph')) {
+      // Ensure proper flowchart format
+      if (!cleanedCode.match(/[A-Z]\[.*?\]/)) {
+        return this.getFallbackFlowchart({ name: 'Unknown' });
+      }
+    }
+    
+    // Final validation - check for common syntax errors
+    const problematicPatterns = [
+      /\]\s*\[/,  // Missing connection between nodes
+      /\[\s*\]/,  // Empty brackets
+      /\(\s*\)/,  // Empty parentheses
+    ];
+    
+    for (const pattern of problematicPatterns) {
+      if (pattern.test(cleanedCode)) {
+        console.warn('Detected problematic pattern, using fallback');
+        return this.getFallbackFlowchart({ name: 'Unknown' });
+      }
+    }
+    
+    return cleanedCode.trim();
   }
 
   getFallbackFlowchart(repositoryData) {
     const repoName = repositoryData.name || repositoryData.full_name || 'Repository';
+    // Clean the repo name to avoid issues
+    const cleanRepoName = repoName.replace(/[^a-zA-Z0-9\s]/g, '').trim() || 'Repository';
+    
     return `flowchart TD
-    A[User] --> B[${repoName}]
+    A[User] --> B[${cleanRepoName}]
     B --> C[Frontend]
     B --> D[Backend]
     C --> E[UI Components]
@@ -265,31 +379,23 @@ Keep it simple with 5-8 nodes maximum.`;
   }
 
   getFallbackComponent(repositoryData) {
-    const repoName = repositoryData.name || repositoryData.full_name || 'App';
-    return `graph TB
-    subgraph "Frontend"
-      A[${repoName} UI]
-      B[Components]
-      C[Services]
-    end
+    const repoName = repositoryData.name || repositoryData.full_name || 'Repository';
+    const cleanRepoName = repoName.replace(/[^a-zA-Z0-9\s]/g, '').trim() || 'Repository';
     
-    subgraph "Backend"
-      D[API Server]
-      E[Controllers]
-      F[Models]
-    end
-    
-    subgraph "Data Layer"
-      G[Database]
-      H[Cache]
-    end
-    
-    A --> B
-    B --> C
-    C --> D
-    D --> E
+    return `flowchart TD
+    A[User Interface] --> B[${cleanRepoName} Core]
+    B --> C[Business Logic]
+    B --> D[Data Layer]
+    C --> E[Services]
+    D --> F[Database]
     E --> F
-    F --> G`;
+    
+    style A fill:#e3f2fd
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#fff8e1`;
   }
 
   getFallbackSequence(repositoryData) {
