@@ -3,29 +3,19 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import CodebaseViewer from './CodebaseViewer';
 
-const GitHubIntegration = ({ workspaceId, workspace }) => {
+const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange }) => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('issues');
   const [repository, setRepository] = useState({ owner: '', repo: '' });
-  const [repoInfo, setRepoInfo] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [data, setData] = useState({
-    issues: [],
-    pullRequests: [],
-    commits: [],
-    releases: []
-  });
-  const [loading, setLoading] = useState({
-    repo: false,
-    connect: false,
-    disconnect: false,
-    issues: false,
-    pullRequests: false,
-    commits: false,
-    releases: false
-  });
   const [error, setError] = useState('');
   const [showConnectForm, setShowConnectForm] = useState(false);
+  const [loading, setLoading] = useState({
+    connect: false,
+    disconnect: false
+  });
+
+  // Use props data instead of local state
+  const { isConnected, repoInfo, data, loading: githubLoading } = githubData;
 
   const tabs = [
     { id: 'issues', label: 'Issues', icon: '📌' },
@@ -36,44 +26,6 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
   ];
 
   const isCreator = workspace?.userRole === 'Creator';
-
-  useEffect(() => {
-    fetchWorkspaceRepository();
-  }, [workspaceId]);
-
-  const fetchWorkspaceRepository = async () => {
-    setLoading(prev => ({ ...prev, repo: true }));
-    setError('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/repository`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.data.connected) {
-        setRepoInfo(response.data.repository);
-        setIsConnected(true);
-        setRepository({
-          owner: response.data.repository.owner.login,
-          repo: response.data.repository.name
-        });
-        // Auto-fetch data for the first tab if not codebase
-        if (activeTab !== 'codebase') {
-          fetchData('issues');
-        }
-      } else {
-        setRepoInfo(null);
-        setIsConnected(false);
-        setRepository({ owner: '', repo: '' });
-      }
-    } catch (error) {
-      console.error('Error fetching workspace repository:', error);
-      setError(error.response?.data?.message || 'Failed to fetch repository information');
-    } finally {
-      setLoading(prev => ({ ...prev, repo: false }));
-    }
-  };
 
   const handleConnectRepository = async (e) => {
     e.preventDefault();
@@ -95,8 +47,8 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
         }
       );
 
-      // Refresh repository info
-      await fetchWorkspaceRepository();
+      // Notify parent to refresh data
+      onDataChange();
       setShowConnectForm(false);
       setRepository({ owner: '', repo: '' });
     } catch (error) {
@@ -121,15 +73,8 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Reset state
-      setRepoInfo(null);
-      setIsConnected(false);
-      setData({
-        issues: [],
-        pullRequests: [],
-        commits: [],
-        releases: []
-      });
+      // Notify parent to refresh data
+      onDataChange();
     } catch (error) {
       console.error('Error disconnecting repository:', error);
       setError(error.response?.data?.message || 'Failed to disconnect repository');
@@ -138,44 +83,9 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
     }
   };
 
-  const fetchData = async (type) => {
-    if (!isConnected || type === 'codebase') return;
-
-    setLoading(prev => ({ ...prev, [type]: true }));
-    setError('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const endpoint = type === 'pullRequests' ? 'pull-requests' : 
-                     type === 'releases' ? 'changelog' : type;
-      
-      const response = await axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/${endpoint}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setData(prev => ({
-        ...prev,
-        [type]: response.data[type] || response.data.issues || response.data.commits || response.data.releases || []
-      }));
-    } catch (error) {
-      console.error(`Error fetching ${type}:`, error);
-      setError(error.response?.data?.message || `Failed to fetch ${type}`);
-    } finally {
-      setLoading(prev => ({ ...prev, [type]: false }));
-    }
-  };
-
   const handleRefresh = () => {
-    if (activeTab !== 'codebase') {
-      fetchData(activeTab);
-    }
+    onDataChange();
   };
-
-  useEffect(() => {
-    if (isConnected && activeTab !== 'codebase') {
-      fetchData(activeTab);
-    }
-  }, [activeTab, isConnected]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -194,7 +104,7 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
     return 'bg-gray-100 text-gray-800';
   };
 
-  if (loading.repo) {
+  if (githubLoading.repo) {
     return (
       <div className="space-y-6">
         <div className="flex justify-center py-8">
@@ -271,10 +181,10 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
                 {activeTab !== 'codebase' && (
                   <button
                     onClick={handleRefresh}
-                    disabled={loading[activeTab]}
+                    disabled={githubLoading[activeTab]}
                     className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 flex items-center space-x-1"
                   >
-                    <svg className={`w-4 h-4 ${loading[activeTab] ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-4 h-4 ${githubLoading[activeTab] ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     <span>Refresh</span>
@@ -318,9 +228,16 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
                   >
                     <span>{tab.icon}</span>
                     <span>{tab.label}</span>
-                    {tab.id !== 'codebase' && data[tab.id] && (
+                    {tab.id !== 'codebase' && (
                       <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">
-                        {data[tab.id].length}
+                        {githubLoading[tab.id] ? (
+                          <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          data[tab.id]?.length || 0
+                        )}
                       </span>
                     )}
                   </button>
@@ -339,7 +256,7 @@ const GitHubIntegration = ({ workspaceId, workspace }) => {
               {/* Other tabs content remains the same... */}
               {activeTab !== 'codebase' && (
                 <>
-                  {loading[activeTab] ? (
+                  {githubLoading[activeTab] ? (
                     <div className="flex justify-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>

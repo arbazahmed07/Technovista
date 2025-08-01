@@ -12,10 +12,36 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('members');
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  
+  // Add GitHub data state
+  const [githubData, setGithubData] = useState({
+    isConnected: false,
+    repoInfo: null,
+    data: {
+      issues: [],
+      pullRequests: [],
+      commits: [],
+      releases: []
+    },
+    loading: {
+      repo: false,
+      issues: false,
+      pullRequests: false,
+      commits: false,
+      releases: false
+    }
+  });
 
   useEffect(() => {
     fetchWorkspaceDetails();
   }, [workspaceId]);
+
+  // Add useEffect to fetch GitHub data when workspace is loaded
+  useEffect(() => {
+    if (workspace) {
+      fetchGitHubData();
+    }
+  }, [workspace]);
 
   const fetchWorkspaceDetails = async () => {
     try {
@@ -32,8 +58,113 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
     }
   };
 
+  // Add GitHub data fetching function
+  const fetchGitHubData = async () => {
+    setGithubData(prev => ({
+      ...prev,
+      loading: { ...prev.loading, repo: true }
+    }));
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // First, check if repository is connected
+      const repoResponse = await axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/repository`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (repoResponse.data.connected) {
+        setGithubData(prev => ({
+          ...prev,
+          isConnected: true,
+          repoInfo: repoResponse.data.repository,
+          loading: { ...prev.loading, repo: false }
+        }));
+
+        // Fetch all GitHub data in parallel
+        const dataPromises = [
+          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/issues`, {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/pull-requests`, {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/commits`, {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/changelog`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ];
+
+        // Set individual loading states
+        setGithubData(prev => ({
+          ...prev,
+          loading: {
+            ...prev.loading,
+            issues: true,
+            pullRequests: true,
+            commits: true,
+            releases: true
+          }
+        }));
+
+        try {
+          const [issuesRes, pullRequestsRes, commitsRes, releasesRes] = await Promise.allSettled(dataPromises);
+
+          setGithubData(prev => ({
+            ...prev,
+            data: {
+              issues: issuesRes.status === 'fulfilled' ? (issuesRes.value.data.issues || []) : [],
+              pullRequests: issuesRes.status === 'fulfilled' ? (pullRequestsRes.value.data.pullRequests || []) : [],
+              commits: commitsRes.status === 'fulfilled' ? (commitsRes.value.data.commits || []) : [],
+              releases: releasesRes.status === 'fulfilled' ? (releasesRes.value.data.releases || []) : []
+            },
+            loading: {
+              repo: false,
+              issues: false,
+              pullRequests: false,
+              commits: false,
+              releases: false
+            }
+          }));
+        } catch (error) {
+          console.error('Error fetching GitHub data:', error);
+          setGithubData(prev => ({
+            ...prev,
+            loading: {
+              repo: false,
+              issues: false,
+              pullRequests: false,
+              commits: false,
+              releases: false
+            }
+          }));
+        }
+      } else {
+        setGithubData(prev => ({
+          ...prev,
+          isConnected: false,
+          repoInfo: null,
+          loading: { ...prev.loading, repo: false }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching GitHub repository:', error);
+      setGithubData(prev => ({
+        ...prev,
+        loading: { ...prev.loading, repo: false }
+      }));
+    }
+  };
+
   const handleMembersAdded = () => {
     fetchWorkspaceDetails();
+  };
+
+  // Add function to refresh GitHub data
+  const handleGitHubDataChange = () => {
+    fetchGitHubData();
   };
 
   const canManageMembers = workspace?.userRole === 'Creator' || workspace?.userRole === 'Admin';
@@ -374,7 +505,12 @@ const WorkspaceDetail = ({ workspaceId, onBack }) => {
             {/* GitHub Integration Tab */}
             {activeTab === 'github' && (
               <div className="p-6">
-                <GitHubIntegration workspaceId={workspaceId} workspace={workspace} />
+                <GitHubIntegration 
+                  workspaceId={workspaceId} 
+                  workspace={workspace}
+                  githubData={githubData}
+                  onDataChange={handleGitHubDataChange}
+                />
               </div>
             )}
           </div>
