@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const auth = require('../middleware/auth');
 const Workspace = require('../models/Workspace');
+const architectureService = require('../services/architectureService');
 const router = express.Router();
 
 // GitHub API base configuration
@@ -1230,6 +1231,160 @@ router.post('/workspace/:workspaceId/summarize', auth, async (req, res) => {
     console.error('Repository summarization error:', error);
     res.status(500).json({ 
       message: error.response?.data?.message || 'Failed to generate repository summary' 
+    });
+  }
+});
+
+// Add this route after the existing routes
+router.post('/workspace/:workspaceId/architecture', auth, async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { diagramType = 'flowchart' } = req.body;
+
+    console.log('🏗️ Architecture request:', { workspaceId, userId: req.user.id, diagramType });
+
+    // Get workspace with GitHub connection
+    const workspace = await Workspace.findById(workspaceId)
+      .populate('members.user', 'name email');
+    
+    if (!workspace) {
+      console.log('❌ Workspace not found:', workspaceId);
+      return res.status(404).json({ message: 'Workspace not found' });
+    }
+
+    console.log('✅ Workspace found:', workspace.name);
+
+    // Check if user has access to workspace
+    const userMembership = workspace.members.find(
+      member => member.user._id.toString() === req.user.id
+    );
+
+    if (!userMembership) {
+      console.log('❌ Access denied for user:', req.user.id);
+      return res.status(403).json({ message: 'Access denied to this workspace' });
+    }
+
+    console.log('✅ User access verified');
+
+    // Check for GitHub repository connection
+    if (!workspace.githubRepository) {
+      console.log('❌ No GitHub repository connected');
+      return res.status(400).json({ message: 'No GitHub repository connected to this workspace' });
+    }
+
+    const { owner, repo } = workspace.githubRepository;
+    console.log('✅ Repository found:', `${owner}/${repo}`);
+    
+    // Check if required services are available
+    let architectureService;
+    try {
+      architectureService = require('../services/architectureService');
+      console.log('✅ Architecture service loaded');
+    } catch (serviceError) {
+      console.error('❌ Architecture service not found:', serviceError.message);
+      return res.status(500).json({ 
+        message: 'Architecture service not available. Please check server configuration.' 
+      });
+    }
+
+    // Use dynamic import for @octokit/rest (ES Module)
+    let octokit;
+    try {
+      if (!process.env.GITHUB_TOKEN) {
+        throw new Error('GITHUB_TOKEN not configured');
+      }
+      
+      // Dynamic import for ES Module
+      const { Octokit } = await import('@octokit/rest');
+      
+      octokit = new Octokit({
+        auth: process.env.GITHUB_TOKEN,
+      });
+      console.log('✅ GitHub client initialized');
+    } catch (octokitError) {
+      console.error('❌ GitHub client initialization failed:', octokitError.message);
+      return res.status(500).json({ 
+        message: 'GitHub integration not available. Please check server configuration.' 
+      });
+    }
+
+    try {
+      console.log('📡 Fetching repository data...');
+      
+      // Get repository information
+      const repoResponse = await octokit.rest.repos.get({
+        owner,
+        repo
+      });
+
+      console.log('✅ Repository data fetched');
+
+      // Get repository structure (files) with error handling
+      let files = [];
+      try {
+        const treeResponse = await octokit.rest.git.getTree({
+          owner,
+          repo,
+          tree_sha: repoResponse.data.default_branch,
+          recursive: true
+        });
+
+        // Filter and process files
+        files = treeResponse.data.tree
+          .filter(item => item.type === 'blob' && item.path)
+          .slice(0, 1000) // Limit to 1000 files to avoid memory issues
+          .map(item => ({
+            path: item.path,
+            name: item.path.split('/').pop(),
+            size: item.size || 0,
+            type: 'file'
+          }));
+
+        console.log(`✅ Processed ${files.length} files`);
+      } catch (treeError) {
+        console.warn('⚠️ Could not fetch repository tree, using minimal file list:', treeError.message);
+        files = []; // Continue with empty file list
+      }
+
+      // Generate architecture diagram
+      console.log('🎨 Generating architecture diagram...');
+      const architectureData = await architectureService.generateArchitecture(
+        files, 
+        repoResponse.data, 
+        diagramType
+      );
+
+      console.log('✅ Architecture diagram generated successfully');
+
+      res.json({
+        success: true,
+        ...architectureData
+      });
+
+    } catch (githubError) {
+      console.error('❌ GitHub API error:', githubError.message);
+      
+      if (githubError.response?.status === 404) {
+        return res.status(404).json({ 
+          message: 'Repository not found or not accessible' 
+        });
+      }
+      
+      if (githubError.response?.status === 403) {
+        return res.status(403).json({ 
+          message: 'GitHub API rate limit exceeded or access denied' 
+        });
+      }
+      
+      res.status(500).json({ 
+        message: 'Failed to fetch repository data for architecture generation' 
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Architecture generation error:', error);
+    res.status(500).json({ 
+      message: error.message || 'Failed to generate architecture diagram' 
     });
   }
 });

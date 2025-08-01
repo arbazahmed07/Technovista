@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import CodebaseViewer from './CodebaseViewer';
+import ArchitectureDiagram from './ArchitectureDiagram';
 
 const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange }) => {
   const { user } = useAuth();
@@ -23,11 +24,12 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
   const { isConnected, repoInfo, data, loading: githubLoading } = githubData;
 
   const tabs = [
-    { id: 'issues', label: 'Issues', icon: '📌' },
-    { id: 'pullRequests', label: 'Pull Requests', icon: '🔀' },
-    { id: 'commits', label: 'Commits', icon: '📦' },
-    { id: 'releases', label: 'Changelog', icon: '📝' },
-    { id: 'codebase', label: 'Codebase', icon: '💻' }
+    { id: 'issues', name: 'Issues', icon: '🐛' },
+    { id: 'pulls', name: 'Pull Requests', icon: '🔄' },
+    { id: 'commits', name: 'Commits', icon: '📝' },
+    { id: 'releases', name: 'Releases', icon: '🚀' },
+    { id: 'codebase', name: 'Codebase', icon: '📁' },
+    { id: 'architecture', name: 'Architecture', icon: '🏗️' }
   ];
 
   const isCreator = workspace?.userRole === 'Creator';
@@ -413,8 +415,15 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
                 </div>
               )}
 
+              {/* Architecture Tab */}
+              {activeTab === 'architecture' && (
+                <div className="p-6">
+                  <ArchitectureDiagram workspaceId={workspaceId} />
+                </div>
+              )}
+
               {/* Other tabs content remains the same... */}
-              {activeTab !== 'codebase' && (
+              {activeTab !== 'codebase' && activeTab !== 'architecture' && (
                 <>
                   {githubLoading[activeTab] ? (
                     <div className="flex justify-center py-8">
@@ -479,7 +488,7 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
                       )}
 
                       {/* Pull Requests Tab */}
-                      {activeTab === 'pullRequests' && (
+                      {activeTab === 'pulls' && (
                         <div className="space-y-4">
                           {data.pullRequests.length === 0 ? (
                             <div className="text-center py-8">

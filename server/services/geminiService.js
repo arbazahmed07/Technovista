@@ -1,43 +1,21 @@
-const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 class GeminiService {
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY;
-    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is required');
+    }
+    
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
   }
 
   async generateContent(prompt) {
     try {
-      const response = await axios.post(
-        this.baseUrl,
-        {
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 2048
-          }
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-goog-api-key': this.apiKey
-          }
-        }
-      );
-
-      return response.data.candidates[0].content.parts[0].text;
+      const response = await this.model.generateContent(prompt);
+      return response.response.text();
     } catch (error) {
-      console.error('Gemini API Error:', error.response?.data || error.message);
+      console.error('Gemini API Error:', error);
       throw new Error('Failed to generate content with Gemini');
     }
   }
@@ -218,52 +196,38 @@ Respond ONLY with valid JSON array. No markdown or explanatory text.
   }
 
   async generateRepositorySummary(repositoryData, recentCommits, issues, pullRequests) {
-    const prompt = `
-Analyze the following GitHub repository data and generate a comprehensive summary:
+    const prompt = `Analyze this GitHub repository and provide a JSON summary:
 
-REPOSITORY INFORMATION:
-- Name: ${repositoryData.fullName}
-- Description: ${repositoryData.description || 'No description provided'}
-- Primary Language: ${repositoryData.language || 'Not specified'}
-- Stars: ${repositoryData.stars}
-- Forks: ${repositoryData.forks}
-- Open Issues: ${repositoryData.openIssues}
-- Created: ${repositoryData.createdAt}
-- Last Updated: ${repositoryData.updatedAt}
-- Default Branch: ${repositoryData.defaultBranch}
+Repository: ${repositoryData.fullName}
+Description: ${repositoryData.description || 'No description'}
+Language: ${repositoryData.language || 'Multiple'}
+Stars: ${repositoryData.stars}
+Forks: ${repositoryData.forks}
+Open Issues: ${repositoryData.openIssues}
 
-RECENT ACTIVITY:
-- Recent Commits: ${recentCommits.length} commits
-- Open Issues: ${issues.length} issues
-- Pull Requests: ${pullRequests.length} PRs
+Recent Commits (${recentCommits.length}):
+${recentCommits.slice(0, 5).map(commit => `- ${commit.message.split('\n')[0]}`).join('\n')}
 
-RECENT COMMITS (Last 5):
-${recentCommits.slice(0, 5).map(commit => `- ${commit.message.split('\n')[0]} by ${commit.author.name}`).join('\n')}
-
-TOP ISSUES:
+Open Issues (${issues.length}):
 ${issues.slice(0, 3).map(issue => `- #${issue.number}: ${issue.title}`).join('\n')}
 
-Please provide a comprehensive repository summary in the following JSON format:
-
+Return a JSON object with:
 {
-  "overview": "Brief overview of what this repository is about",
-  "techStack": "Primary technologies and frameworks used",
-  "recentActivity": "Summary of recent development activity",
-  "projectHealth": "Assessment of project health based on activity and issues",
-  "keyInsights": [
-    "Important insight about the project",
-    "Another key finding"
-  ],
-  "recommendations": [
-    "Suggestion for new team members",
-    "Area that might need attention"
-  ]
-}
+  "overview": "Brief project overview",
+  "techStack": "Technologies used",
+  "recentActivity": "Recent development activity",
+  "projectHealth": "Project health assessment",
+  "keyInsights": ["insight1", "insight2"],
+  "recommendations": ["recommendation1", "recommendation2"]
+}`;
 
-Respond ONLY with valid JSON. No markdown or explanatory text.
-`;
-
-    return await this.generateContent(prompt);
+    try {
+      const response = await this.model.generateContent(prompt);
+      return response.response.text();
+    } catch (error) {
+      console.error('Gemini API error:', error);
+      throw error;
+    }
   }
 }
 
