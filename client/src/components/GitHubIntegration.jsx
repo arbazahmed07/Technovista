@@ -42,7 +42,7 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `http://localhost:5000/api/github/workspace/${workspaceId}/summarize`,
+        `https://technovista.onrender.com/api/github/workspace/${workspaceId}/summarize`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -88,7 +88,7 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:5000/api/github/workspace/${workspaceId}/connect`,
+        `https://technovista.onrender.com/api/github/workspace/${workspaceId}/connect`,
         {
           owner: repository.owner.trim(),
           repo: repository.repo.trim()
@@ -120,7 +120,7 @@ const GitHubIntegration = ({ workspaceId, workspace, githubData, onDataChange })
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/github/workspace/${workspaceId}/disconnect`, {
+      await axios.delete(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/disconnect`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

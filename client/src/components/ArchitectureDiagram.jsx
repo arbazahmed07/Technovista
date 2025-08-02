@@ -34,7 +34,7 @@ const ArchitectureDiagram = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `http://localhost:5000/api/github/workspace/${workspaceId}/architecture`,
+        `https://technovista.onrender.com/api/github/workspace/${workspaceId}/architecture`,
         { diagramType },
         { headers: { Authorization: `Bearer ${token}` } }
       );

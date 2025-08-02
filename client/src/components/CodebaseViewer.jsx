@@ -29,7 +29,7 @@ const CodebaseViewer = ({ workspaceId }) => {
     setLoading(prev => ({ ...prev, branches: true }));
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/branches`, {
+      const response = await axios.get(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/branches`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBranches(response.data.branches);
@@ -46,7 +46,7 @@ const CodebaseViewer = ({ workspaceId }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/files`, {
+      const response = await axios.get(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/files`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { path, ref: selectedBranch }
       });
@@ -67,7 +67,7 @@ const CodebaseViewer = ({ workspaceId }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/file-content`, {
+      const response = await axios.get(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/file-content`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { path: filePath, ref: selectedBranch }
       });

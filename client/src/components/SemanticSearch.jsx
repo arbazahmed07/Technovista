@@ -42,7 +42,7 @@ const SemanticSearch = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `http://localhost:5000/api/search/semantic/${workspaceId}`,
+        `https://technovista.onrender.com/api/search/semantic/${workspaceId}`,
         {
           query: searchQuery,
           filters: filters

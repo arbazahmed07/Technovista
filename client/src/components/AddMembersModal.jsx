@@ -39,7 +39,7 @@ const AddMembersModal = ({ isOpen, onClose, workspaceId, onMembersAdded }) => {
 
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `http://localhost:5000/api/workspaces/${workspaceId}/invite`,
+        `https://technovista.onrender.com/api/workspaces/${workspaceId}/invite`,
         { emails: emailList },
         {
           headers: { Authorization: `Bearer ${token}` }

@@ -23,7 +23,7 @@ export const SocketProvider = ({ children }) => {
       if (token) {
         console.log('Attempting to connect with token:', token ? 'Token present' : 'No token');
         
-        const newSocket = io('http://localhost:5000', {
+        const newSocket = io('https://technovista.onrender.com', {
           auth: {
             token
           },

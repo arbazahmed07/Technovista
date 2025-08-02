@@ -64,7 +64,7 @@ const FloatingAIBot = ({ workspaceId, user }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        'http://localhost:5000/api/ai/chat',
+        'https://technovista.onrender.com/api/ai/chat',
         {
           message: inputMessage,
           workspaceId,

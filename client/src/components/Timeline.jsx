@@ -38,7 +38,7 @@ const Timeline = ({ workspaceId }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/timeline/${workspaceId}`, {
+      const response = await axios.get(`https://technovista.onrender.com/api/timeline/${workspaceId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setTimelineEvents(response.data.events || []);
@@ -56,7 +56,7 @@ const Timeline = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `http://localhost:5000/api/timeline/${workspaceId}`,
+        `https://technovista.onrender.com/api/timeline/${workspaceId}`,
         newEvent,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -79,7 +79,7 @@ const Timeline = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.patch(
-        `http://localhost:5000/api/timeline/${workspaceId}/${eventId}`,
+        `https://technovista.onrender.com/api/timeline/${workspaceId}/${eventId}`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -99,7 +99,7 @@ const Timeline = ({ workspaceId }) => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/timeline/${workspaceId}/${eventId}`, {
+      await axios.delete(`https://technovista.onrender.com/api/timeline/${workspaceId}/${eventId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
