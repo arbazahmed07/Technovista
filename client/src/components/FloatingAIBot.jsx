@@ -16,7 +16,7 @@ const FloatingAIBot = ({ workspaceId, user }) => {
       {
         id: 1,
         type: 'ai',
-        content: `Hello ${user?.name}! I'm your AI assistant. I can help you with task guidance, answer questions about your workspace, and provide general assistance. How can I help you today?`,
+        content: `Hello ${user?.name}! I'm your workspace AI assistant. I can help you with task guidance, answer questions about your workspace, and provide general assistance. How can I help you today?`,
         timestamp: new Date()
       }
     ]);
@@ -122,41 +122,41 @@ const FloatingAIBot = ({ workspaceId, user }) => {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button - Positioned on LEFT side */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed bottom-6 left-6 z-40">
           <button
             onClick={() => setIsOpen(true)}
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300"
+            className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-purple-300"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.013 8.013 0 01-7.93-7M3 12c0-4.418 3.582-8 8-8s8 3.582 8 8z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
           </button>
           
           {/* Notification Badge */}
           {currentTask && (
-            <div className="absolute -top-2 -left-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
               !
             </div>
           )}
         </div>
       )}
 
-      {/* Chat Window */}
+      {/* Chat Window - Positioned on LEFT side */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-80 h-96 bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col">
+        <div className="fixed bottom-6 left-6 z-40 w-80 h-96 bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-t-lg flex items-center justify-between">
+          <div className="bg-gradient-to-r from-purple-500 to-pink-600 text-white p-4 rounded-t-lg flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
               <div>
-                <h3 className="font-medium">AI Assistant</h3>
-                <p className="text-xs opacity-75">Always here to help</p>
+                <h3 className="font-medium">Workspace AI</h3>
+                <p className="text-xs opacity-75">Task & Workspace Helper</p>
               </div>
             </div>
             <button
@@ -171,12 +171,12 @@ const FloatingAIBot = ({ workspaceId, user }) => {
 
           {/* Current Task Context */}
           {currentTask && (
-            <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 text-sm">
+            <div className="px-4 py-2 bg-purple-50 border-b border-purple-200 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-blue-800 font-medium">Helping with: {currentTask.title}</span>
+                <span className="text-purple-800 font-medium">Helping with: {currentTask.title}</span>
                 <button
                   onClick={clearCurrentTask}
-                  className="text-blue-600 hover:text-blue-800 text-xs"
+                  className="text-purple-600 hover:text-purple-800 text-xs"
                 >
                   Clear
                 </button>
@@ -194,7 +194,7 @@ const FloatingAIBot = ({ workspaceId, user }) => {
                 <div
                   className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
                     message.type === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-purple-600 text-white'
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
@@ -227,14 +227,14 @@ const FloatingAIBot = ({ workspaceId, user }) => {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask me anything..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ask about tasks or workspace..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 disabled={loading}
               />
               <button
                 onClick={sendMessage}
                 disabled={loading || !inputMessage.trim()}
-                className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
