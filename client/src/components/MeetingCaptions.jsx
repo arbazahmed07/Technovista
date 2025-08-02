@@ -110,7 +110,7 @@ const MeetingCaptions = ({ meetingId, isActive, onCaptionsUpdate }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `https://technovista.onrender.com/api/meet/${meetingId}/captions`,
+        `http://localhost:5000/api/meet/${meetingId}/captions`,
         caption,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -123,7 +123,7 @@ const MeetingCaptions = ({ meetingId, isActive, onCaptionsUpdate }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `https://technovista.onrender.com/api/meet/${meetingId}/generate-automatic-notes`,
+        `http://localhost:5000/api/meet/${meetingId}/generate-automatic-notes`,
         { captions: captionsRef.current },
         { headers: { Authorization: `Bearer ${token}` } }
       );

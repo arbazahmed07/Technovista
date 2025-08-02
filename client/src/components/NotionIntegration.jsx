@@ -21,7 +21,7 @@ const NotionIntegration = ({ workspaceId }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`https://technovista.onrender.com/api/notion/workspace/${workspaceId}/pages`, {
+      const response = await axios.get(`http://localhost:5000/api/notion/workspace/${workspaceId}/pages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -39,7 +39,7 @@ const NotionIntegration = ({ workspaceId }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`https://technovista.onrender.com/api/notion/page/${pageId}`, {
+      const response = await axios.get(`http://localhost:5000/api/notion/page/${pageId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -64,7 +64,7 @@ const NotionIntegration = ({ workspaceId }) => {
   const updatePageStatus = async (pageId, status) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.patch(`https://technovista.onrender.com/api/notion/page/${pageId}/status`, 
+      await axios.patch(`http://localhost:5000/api/notion/page/${pageId}/status`, 
         { status },
         { headers: { Authorization: `Bearer ${token}` } }
       );

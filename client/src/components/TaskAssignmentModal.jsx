@@ -37,7 +37,7 @@ const TaskAssignmentModal = ({ isOpen, onClose, workspaceId, memberId, memberNam
 
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `https://technovista.onrender.com/api/tasks/assign`,
+        `http://localhost:5000/api/tasks/assign`,
         {
           workspaceId,
           assignedTo: memberId,

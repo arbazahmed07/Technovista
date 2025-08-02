@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
       setAuthToken(token);
       
       try {
-        const res = await axios.get('https://technovista.onrender.com/api/auth/me');
+        const res = await axios.get('http://localhost:5000/api/auth/me');
         
         dispatch({
           type: 'USER_LOADED',
@@ -87,7 +87,7 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'SET_LOADING' });
     
     try {
-      const res = await axios.post('https://technovista.onrender.com/api/auth/login', {
+      const res = await axios.post('http://localhost:5000/api/auth/login', {
         email,
         password,
       });
@@ -121,7 +121,7 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'SET_LOADING' });
     
     try {
-      const res = await axios.post('https://technovista.onrender.com/api/auth/signup', {
+      const res = await axios.post('http://localhost:5000/api/auth/signup', {
         name,
         email,
         password,

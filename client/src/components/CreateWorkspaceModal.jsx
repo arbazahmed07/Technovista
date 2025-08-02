@@ -47,7 +47,7 @@ const CreateWorkspaceModal = ({ isOpen, onClose, onWorkspaceCreated }) => {
 
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        'https://technovista.onrender.com/api/workspaces',
+        'http://localhost:5000/api/workspaces',
         {
           name: name.trim(),
           description: description.trim(),

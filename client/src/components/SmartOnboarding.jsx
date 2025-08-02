@@ -26,7 +26,7 @@ const SmartOnboarding = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `https://technovista.onrender.com/api/onboarding/${workspaceId}/path`,
+        `http://localhost:5000/api/onboarding/${workspaceId}/path`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -165,7 +165,7 @@ const SmartOnboarding = ({ workspaceId }) => {
       const token = localStorage.getItem('token');
       
       const response = await axios.post(
-        `https://technovista.onrender.com/api/onboarding/${workspaceId}/generate`,
+        `http://localhost:5000/api/onboarding/${workspaceId}/generate`,
         { learningPreferences },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -214,7 +214,7 @@ const SmartOnboarding = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `https://technovista.onrender.com/api/onboarding/${workspaceId}/tasks`,
+        `http://localhost:5000/api/onboarding/${workspaceId}/tasks`,
         { learningPreferences },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -252,7 +252,7 @@ const SmartOnboarding = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.delete(
-        `https://technovista.onrender.com/api/onboarding/${workspaceId}/reset`,
+        `http://localhost:5000/api/onboarding/${workspaceId}/reset`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -289,7 +289,7 @@ const SmartOnboarding = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `https://technovista.onrender.com/api/onboarding/${pathId}/progress`,
+        `http://localhost:5000/api/onboarding/${pathId}/progress`,
         {
           completedTasks: progress.completedTasks,
           currentStep: progress.currentStep,

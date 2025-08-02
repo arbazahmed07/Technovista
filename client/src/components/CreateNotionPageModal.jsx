@@ -33,7 +33,7 @@ const CreateNotionPageModal = ({ isOpen, onClose, workspaceId, onPageCreated }) 
 
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `https://technovista.onrender.com/api/notion/workspace/${workspaceId}/create-page`,
+        `http://localhost:5000/api/notion/workspace/${workspaceId}/create-page`,
         formData,
         {
           headers: { Authorization: `Bearer ${token}` }

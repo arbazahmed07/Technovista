@@ -47,7 +47,7 @@ const Chat = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `https://technovista.onrender.com/api/chat/${workspaceId}/messages`,
+        `http://localhost:5000/api/chat/${workspaceId}/messages`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setMessages(response.data.messages || []);

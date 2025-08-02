@@ -42,7 +42,7 @@ const SemanticSearch = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `https://technovista.onrender.com/api/search/semantic/${workspaceId}`,
+        `http://localhost:5000/api/search/semantic/${workspaceId}`,
         {
           query: searchQuery,
           filters: filters
@@ -84,6 +84,8 @@ const SemanticSearch = ({ workspaceId }) => {
 
   const getResultIcon = (type) => {
     switch (type) {
+      case 'answer':
+        return '💡';
       case 'github_repo':
         return '🐙';
       case 'github_issue':
@@ -92,8 +94,12 @@ const SemanticSearch = ({ workspaceId }) => {
         return '🔀';
       case 'github_commit':
         return '📝';
-      case 'notion_page':
+      case 'github_release':
+        return '🚀';
+      case 'github_file':
         return '📄';
+      case 'notion_page':
+        return '📋';
       case 'member':
         return '👤';
       case 'document':
@@ -105,6 +111,8 @@ const SemanticSearch = ({ workspaceId }) => {
 
   const getResultTypeLabel = (type) => {
     switch (type) {
+      case 'answer':
+        return 'AI Answer';
       case 'github_repo':
         return 'Repository';
       case 'github_issue':
@@ -113,6 +121,10 @@ const SemanticSearch = ({ workspaceId }) => {
         return 'Pull Request';
       case 'github_commit':
         return 'Commit';
+      case 'github_release':
+        return 'Release';
+      case 'github_file':
+        return 'Source File';
       case 'notion_page':
         return 'Notion Page';
       case 'member':
@@ -305,18 +317,24 @@ const SemanticSearch = ({ workspaceId }) => {
 
           <div className="space-y-4">
             {results.map((result, index) => (
-              <div key={index} className="bg-white rounded-xl p-6 shadow-sm border hover:shadow-md transition-shadow">
+              <div key={index} className={`rounded-xl p-6 shadow-sm border hover:shadow-md transition-shadow ${
+                result.type === 'answer' ? 'bg-blue-50 border-blue-200' : 'bg-white'
+              }`}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-3">
                     <span className="text-2xl">{getResultIcon(result.type)}</span>
                     <div>
-                      <h4 className="font-semibold text-gray-900 text-lg">
+                      <h4 className={`font-semibold text-lg ${
+                        result.type === 'answer' ? 'text-blue-900' : 'text-gray-900'
+                      }`}>
                         <span dangerouslySetInnerHTML={{ 
                           __html: highlightText(result.title, query) 
                         }} />
                       </h4>
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
-                        <span className="bg-gray-100 px-2 py-1 rounded">
+                        <span className={`px-2 py-1 rounded ${
+                          result.type === 'answer' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'
+                        }`}>
                           {getResultTypeLabel(result.type)}
                         </span>
                         <span>•</span>
@@ -326,6 +344,7 @@ const SemanticSearch = ({ workspaceId }) => {
                       </div>
                     </div>
                   </div>
+
                   {result.url && (
                     <a
                       href={result.url}
@@ -339,28 +358,69 @@ const SemanticSearch = ({ workspaceId }) => {
                 </div>
                 
                 {result.description && (
-                  <p className="text-gray-600 mb-3 line-clamp-3">
+                  <p className={`mb-3 line-clamp-3 ${
+                    result.type === 'answer' ? 'text-blue-800' : 'text-gray-600'
+                  }`}>
                     <span dangerouslySetInnerHTML={{ 
                       __html: highlightText(result.description, query) 
                     }} />
                   </p>
                 )}
 
-                {result.metadata && (
+                {/* Special handling for answer metadata */}
+                {result.type === 'answer' && result.metadata?.relatedResults && (
+                  <div className="mt-3 p-3 bg-white rounded-lg border">
+                    <h5 className="text-sm font-medium text-gray-700 mb-2">Related Items:</h5>
+                    <div className="space-y-1">
+                      {result.metadata.relatedResults.slice(0, 3).map((item, idx) => (
+                        <div key={idx} className="text-sm text-gray-600">
+                          <span className="font-medium">{getResultTypeLabel(item.type)}:</span> {item.title}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {result.metadata && result.type !== 'answer' && (
                   <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                     {result.metadata.author && (
                       <span className="bg-gray-100 px-2 py-1 rounded">
                         By: {result.metadata.author}
                       </span>
                     )}
+                    {result.metadata.state && (
+                      <span className={`px-2 py-1 rounded ${
+                        result.metadata.state === 'open' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {result.metadata.state}
+                      </span>
+                    )}
+                    {result.metadata.number && (
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        #{result.metadata.number}
+                      </span>
+                    )}
+                    {result.metadata.labels && result.metadata.labels.length > 0 && (
+                      <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                        {result.metadata.labels.slice(0, 2).join(', ')}
+                        {result.metadata.labels.length > 2 && '...'}
+                      </span>
+                    )}
                     {result.metadata.createdAt && (
                       <span className="bg-gray-100 px-2 py-1 rounded">
-                        Created: {new Date(result.metadata.createdAt).toLocaleDateString()}
+                        {new Date(result.metadata.createdAt).toLocaleDateString()}
                       </span>
                     )}
                     {result.metadata.language && (
                       <span className="bg-gray-100 px-2 py-1 rounded">
                         {result.metadata.language}
+                      </span>
+                    )}
+                    {result.metadata.sha && (
+                      <span className="bg-gray-100 px-2 py-1 rounded font-mono">
+                        {result.metadata.sha}
                       </span>
                     )}
                   </div>

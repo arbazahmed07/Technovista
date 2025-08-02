@@ -66,7 +66,7 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
   const checkAuthStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('https://technovista.onrender.com/api/meet/auth/status', {
+      const response = await axios.get('http://localhost:5000/api/meet/auth/status', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -91,10 +91,10 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      console.log('Making request to:', `https://technovista.onrender.com/api/meet/workspace/${workspaceId}/meetings`);
+      console.log('Making request to:', `http://localhost:5000/api/meet/workspace/${workspaceId}/meetings`);
       
       const response = await axios.get(
-        `https://technovista.onrender.com/api/meet/workspace/${workspaceId}/meetings`,
+        `http://localhost:5000/api/meet/workspace/${workspaceId}/meetings`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -120,7 +120,7 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
     try {
       setAuthLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('https://technovista.onrender.com/api/meet/auth/url', {
+      const response = await axios.get('http://localhost:5000/api/meet/auth/url', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -151,7 +151,7 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
       });
 
       const response = await axios.post(
-        `https://technovista.onrender.com/api/meet/workspace/${workspaceId}/create`,
+        `http://localhost:5000/api/meet/workspace/${workspaceId}/create`,
         {
           ...newMeeting,
           attendees: attendeesArray,
@@ -214,7 +214,7 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
         // Automatically generate notes when meeting ends
         const token = localStorage.getItem('token');
         await axios.post(
-          `https://technovista.onrender.com/api/meet/${activeMeeting._id}/generate-automatic-notes`,
+          `http://localhost:5000/api/meet/${activeMeeting._id}/generate-automatic-notes`,
           {},
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -237,7 +237,7 @@ const GoogleMeetIntegration = ({ workspaceId }) => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`https://technovista.onrender.com/api/meet/${meetingId}`, {
+      await axios.delete(`http://localhost:5000/api/meet/${meetingId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
