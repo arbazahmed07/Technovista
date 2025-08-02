@@ -10,6 +10,9 @@ import Chat from './Chat';
 import GoogleMeetIntegration from './GoogleMeetIntegration';
 import MeetingNotes from './MeetingNotes';
 import SemanticSearch from './SemanticSearch';
+import TaskAssignmentModal from './TaskAssignmentModal';
+import TaskDisplay from './TaskDisplay';
+import FloatingAIBot from './FloatingAIBot';
 
 const WorkspaceDetail = () => {
   const { workspaceId } = useParams();
@@ -20,6 +23,8 @@ const WorkspaceDetail = () => {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('onboarding');
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [showTaskAssignmentModal, setShowTaskAssignmentModal] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
 
   // Add state for invites
   const [invites, setInvites] = useState([]);
@@ -207,6 +212,11 @@ const WorkspaceDetail = () => {
       console.error('Error resending invite:', error);
       alert('Failed to resend invitation');
     }
+  };
+
+  const handleAssignTask = (member) => {
+    setSelectedMember(member);
+    setShowTaskAssignmentModal(true);
   };
 
   if (!workspaceId || workspaceId === 'undefined') {
@@ -598,6 +608,23 @@ const WorkspaceDetail = () => {
           onMembersAdded={handleMembersAdded}
         />
       )}
+
+      {/* Task Assignment Modal */}
+      {showTaskAssignmentModal && selectedMember && (
+        <TaskAssignmentModal
+          isOpen={showTaskAssignmentModal}
+          onClose={() => {
+            setShowTaskAssignmentModal(false);
+            setSelectedMember(null);
+          }}
+          workspaceId={workspaceId}
+          memberId={selectedMember.user.id}
+          memberName={selectedMember.user.name}
+        />
+      )}
+
+      {/* Floating AI Bot */}
+      <FloatingAIBot workspaceId={workspaceId} user={user} />
     </div>
   );
 };

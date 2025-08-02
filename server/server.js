@@ -147,6 +147,8 @@ app.use('/api/chat', require('./routes/chat'));
 app.use('/api/meet', require('./routes/meet'));
 app.use('/api/onboarding', require('./routes/onboarding'));
 // Test route
+app.use('/api/tasks', require('./routes/tasks')); // Add this line
+app.use('/api/ai', require('./routes/ai')); // Add this line
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });
 });
