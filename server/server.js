@@ -151,10 +151,10 @@ app.use('/api/onboarding', require('./routes/onboarding'));
 app.use('/api/tasks', require('./routes/tasks')); // Add this line
 app.use('/api/ai', require('./routes/ai')); // Add this line
 app.get('/', (req, res) => {
-  res.json({ message: 'Server is running!' });
+  res.json({ message: 'Server is running successfully!' });
 });
 
 // Start server
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on the  port ${PORT}`);
 });
