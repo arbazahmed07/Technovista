@@ -28,7 +28,7 @@ const MeetingNotes = ({ workspaceId }) => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `http://localhost:5000/api/meet/workspace/${workspaceId}/notes?filter=${filter}`,
+        `https://technovista.onrender.com/api/meet/workspace/${workspaceId}/notes?filter=${filter}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -45,7 +45,7 @@ const MeetingNotes = ({ workspaceId }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:5000/api/meet/${meetingId}/mark-notes-viewed`,
+        `https://technovista.onrender.com/api/meet/${meetingId}/mark-notes-viewed`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -65,7 +65,7 @@ const MeetingNotes = ({ workspaceId }) => {
       setNotesLoading(true);
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:5000/api/meet/${meetingId}/generate-automatic-notes`,
+        `https://technovista.onrender.com/api/meet/${meetingId}/generate-automatic-notes`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );

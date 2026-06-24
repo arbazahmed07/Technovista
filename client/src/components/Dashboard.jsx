@@ -20,7 +20,7 @@ const Dashboard = () => {
   const fetchWorkspaces = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/workspaces', {
+      const response = await axios.get('https://technovista.onrender.com/api/workspaces', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setWorkspaces(response.data.workspaces || []);
@@ -35,7 +35,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching pending invites...');
-      const response = await axios.get('http://localhost:5000/api/invites/pending', {
+      const response = await axios.get('https://technovista.onrender.com/api/invites/pending', {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('Pending invites response:', response.data);
@@ -67,7 +67,7 @@ const Dashboard = () => {
   const acceptInvite = async (inviteId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:5000/api/invites/${inviteId}/accept`, {}, {
+      const response = await axios.post(`https://technovista.onrender.com/api/invites/${inviteId}/accept`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -92,7 +92,7 @@ const Dashboard = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:5000/api/invites/${inviteId}/decline`, {}, {
+      const response = await axios.post(`https://technovista.onrender.com/api/invites/${inviteId}/decline`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

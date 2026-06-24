@@ -16,7 +16,7 @@ const TaskDisplay = ({ workspaceId, userId }) => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `http://localhost:5000/api/tasks/workspace/${workspaceId}?filter=${filter}`,
+        `https://technovista.onrender.com/api/tasks/workspace/${workspaceId}?filter=${filter}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setTasks(response.data.tasks || []);
@@ -32,7 +32,7 @@ const TaskDisplay = ({ workspaceId, userId }) => {
     try {
       const token = localStorage.getItem('token');
       await axios.put(
-        `http://localhost:5000/api/tasks/${taskId}/status`,
+        `https://technovista.onrender.com/api/tasks/${taskId}/status`,
         { status },
         { headers: { Authorization: `Bearer ${token}` } }
       );

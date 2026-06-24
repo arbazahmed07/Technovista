@@ -74,7 +74,7 @@ const WorkspaceDetail = () => {
 
       // Check GitHub connection status
       const statusResponse = await axios.get(
-        `http://localhost:5000/api/github/workspace/${workspaceId}/status`,
+        `https://technovista.onrender.com/api/github/workspace/${workspaceId}/status`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -82,19 +82,19 @@ const WorkspaceDetail = () => {
 
       if (connected && repository) {
         const [issuesResponse, pullsResponse, commitsResponse, releasesResponse] = await Promise.all([
-          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/issues`, {
+          axios.get(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/issues`, {
             headers: { Authorization: `Bearer ${token}` }
           }).catch(() => ({ data: { issues: [] } })),
           
-          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/pull-requests`, {
+          axios.get(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/pull-requests`, {
             headers: { Authorization: `Bearer ${token}` }
           }).catch(() => ({ data: { pullRequests: [] } })),
           
-          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/commits`, {
+          axios.get(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/commits`, {
             headers: { Authorization: `Bearer ${token}` }
           }).catch(() => ({ data: { commits: [] } })),
           
-          axios.get(`http://localhost:5000/api/github/workspace/${workspaceId}/releases`, {
+          axios.get(`https://technovista.onrender.com/api/github/workspace/${workspaceId}/releases`, {
             headers: { Authorization: `Bearer ${token}` }
           }).catch(() => ({ data: { releases: [] } }))
         ]);
@@ -165,7 +165,7 @@ const WorkspaceDetail = () => {
   const fetchUserDetails = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/auth/me', {
+      const response = await axios.get('https://technovista.onrender.com/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(response.data.user);
@@ -177,7 +177,7 @@ const WorkspaceDetail = () => {
   const fetchWorkspaceDetails = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/workspaces/${workspaceId}`, {
+      const response = await axios.get(`https://technovista.onrender.com/api/workspaces/${workspaceId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setWorkspace(response.data.workspace);
@@ -202,7 +202,7 @@ const WorkspaceDetail = () => {
   const resendInvite = async (email) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:5000/api/workspaces/${workspaceId}/invite`, 
+      await axios.post(`https://technovista.onrender.com/api/workspaces/${workspaceId}/invite`, 
         { invites: [email] },
         { headers: { Authorization: `Bearer ${token}` } }
       );
