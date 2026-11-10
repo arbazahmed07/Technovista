@@ -44,4 +44,5 @@ inviteSchema.post('save', function(doc) {
   });
 });
 
+
 module.exports = mongoose.model('Invite', inviteSchema);
